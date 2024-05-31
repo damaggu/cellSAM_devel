@@ -33,7 +33,7 @@ def download_file_with_progress(url, destination):
     block_size = 1024  # 1 Kibibyte
 
     progress_bar = tqdm(total=total_size_in_bytes, unit='iB', unit_scale=True)
-    
+
     with open(destination, 'wb') as file:
         for data in response.iter_content(block_size):
             progress_bar.update(len(data))
@@ -42,6 +42,20 @@ def download_file_with_progress(url, destination):
 
     if total_size_in_bytes != 0 and progress_bar.n != total_size_in_bytes:
         print("ERROR: Something went wrong")
+
+
+def get_local_model(model_path: str) -> nn.Module:
+    """
+    Returns a loaded CellSAM model from a local path.
+    """
+    config_path = resource_filename(__name__, 'modelconfig.yaml')
+    with open(config_path, 'r') as config_file:
+        config = yaml.safe_load(config_file)
+
+    model = CellSAM(config)
+    model.load_state_dict(torch.load(model_path), strict=False)
+    return model
+
 
 def get_model(model: nn.Module = None) -> nn.Module:
     """
@@ -66,14 +80,15 @@ def get_model(model: nn.Module = None) -> nn.Module:
     model.load_state_dict(torch.load(model_path))
     return model
 
+
 def segment_cellular_image(
-    img: np.ndarray,
-    model: nn.Module = None,
-    normalize: bool = False,
-    postprocess: bool = False,
-    remove_boundaries: bool = False,
-    bbox_threshold: float = 0.4,
-    device: str = 'cpu',
+        img: np.ndarray,
+        model: nn.Module = None,
+        normalize: bool = False,
+        postprocess: bool = False,
+        remove_boundaries: bool = False,
+        bbox_threshold: float = 0.4,
+        device: str = 'cpu',
 ):
     """
     img  (np.array): Image to be segmented with shape (H, W) or (H, W, C)
@@ -82,8 +97,17 @@ def segment_cellular_image(
     if 'cuda' in device:
         assert torch.cuda.is_available(), "cuda is not available. Please use 'cpu' as device."
 
-    model = get_model(model).eval()
-    model.bbox_threshold = bbox_threshold
+    if model is None:
+        if type(model) == str:
+            model = get_local_model(model)
+        else:
+            if 'cuda' in device:
+                model = get_model(model)
+                model = model.to(device)
+                model.eval()
+            else:
+                model = get_model(model).eval()
+        model.bbox_threshold = bbox_threshold
 
     img = format_image_shape(img)
     if normalize:
@@ -92,12 +116,12 @@ def segment_cellular_image(
     img = torch.from_numpy(img).float().unsqueeze(0)
 
     if 'cuda' in device:
-        model, img = model.to(device), img.to(device)
+        img = img.to(device)
 
     preds = model.predict(img, x=None, boxes_per_heatmap=None, device=device)
     if preds is None:
         print("No cells detected.")
-        return None
+        return np.zeros_like(img.cpu().numpy().squeeze(0))
 
     segmentation_predictions, _, x, bounding_boxes = preds
 
