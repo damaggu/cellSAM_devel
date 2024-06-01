@@ -48,7 +48,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--num_chunks", type=int, default=8)
     parser.add_argument("--chunk", type=int, default=0)
-    parser.add_argument("--tile_size", type=int, default=512)
+    parser.add_argument("--tile_size", type=int, default=1024)
     parser.add_argument("--model_path", type=str, default=None)
     parser.add_argument("--bbox_threshold", type=float, default=0.4)
     parser.add_argument("--debug", type=int, default=0)
@@ -66,7 +66,12 @@ if __name__ == "__main__":
         # all_images = all_images[:8]
         # all_images = ['cell_00041.b0.X.npy']
         # all_images = ['cell_00044.b0.X.npy']
-        all_images = ['cell_00001.b0.X.npy']
+        # all_images = ['cell_00001.b0.X.npy']
+        all_images = ['cell_00027.b0.X.npy']
+    else:
+        import matplotlib
+        matplotlib.use('Agg')
+        
     results_path = './results1024/'
     if not os.path.exists(results_path):
         os.makedirs(results_path)
@@ -94,6 +99,7 @@ if __name__ == "__main__":
 
     print(f"Processing images from {start} to {end}")
     for img in tqdm(all_images[start:end]):
+        print(f"Starting to process {img}")
         # try:
         #     wsi = iio.imread(os.path.join(path_to_all_imgs, img))[:, :, [0, 2, 1]]
         # except:
