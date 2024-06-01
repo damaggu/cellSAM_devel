@@ -121,7 +121,7 @@ if __name__ == "__main__":
         # if args.debug:
         #     wsi = wsi[:512, :512]
         input = da.from_array(wsi, chunks=args.tile_size)
-        labels = segment_wsi(input, args.overlap, args.iou_depth, args.iou_threshold, normalize=False, model=model, device=device).compute()
+        labels = segment_wsi(input, args.overlap, args.iou_depth, args.iou_threshold, normalize=False, model=model, device=device, bbox_threshold=args.bbox_threshold).compute()
         labels = relabel_mask(relabel_sequential(labels)[0])
 
         # fixing/reversing padding
