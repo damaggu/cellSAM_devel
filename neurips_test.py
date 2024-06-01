@@ -53,12 +53,13 @@ if __name__ == "__main__":
     parser.add_argument("--bbox_threshold", type=float, default=0.4)
     parser.add_argument("--debug", type=int, default=0)
     parser.add_argument("--gpu", type=int, default=0)
+    parser.add_argument("--results_path", type=str, default='./results1024/')
 
     args = parser.parse_args()
 
     device = f'cuda:{args.gpu}' if torch.cuda.is_available() else 'cpu'
 
-    path_to_all_imgs = '/data/user-data/rdilip/cellSAM/dataset/val_tuning/neurips'
+    path_to_all_imgs = './'
     all_images = os.listdir(path_to_all_imgs)
     all_images = [img for img in all_images if img.endswith('.X.npy')]
 
@@ -72,9 +73,10 @@ if __name__ == "__main__":
         import matplotlib
         matplotlib.use('Agg')
         
-    results_path = './results1024/'
-    if not os.path.exists(results_path):
-        os.makedirs(results_path)
+    results_inferences = os.path.join(args.results_path, 'inferences')
+    results_inspections = os.path.join(args.results_path, 'inspections')
+    os.makedirs(results_inferences, exist_ok=True)
+    os.makedirs(results_inspections, exist_ok=True)
     chunks = args.num_chunks
     chunk_size = len(all_images) // chunks
 
@@ -106,7 +108,9 @@ if __name__ == "__main__":
         #     wsi = cv2.imread(os.path.join(path_to_all_imgs, img))
         #     wsi = cv2.cvtColor(wsi, cv2.COLOR_BGR2RGB)
         wsi = np.load(os.path.join(path_to_all_imgs, img)).transpose((1,2,0))
-        gt_mask = np.load(os.path.join(path_to_all_imgs, img.replace('.X.npy', '.y.npy')))
+        # gt_mask = np.load(os.path.join(path_to_all_imgs, img.replace('.X.npy', '.y.npy')))
+        gt_path = "./evals/tuning/labels/" + img.split('.')[0] + '_label.tiff'
+        gt_mask = iio.imread(gt_path)
 
         # if args.debug:
         #     wsi = wsi[:512, :512]
@@ -115,14 +119,22 @@ if __name__ == "__main__":
         # mask = segment_chunk(input, model=model, device=device, normalize=True)[0]
         labels = segment_wsi(input, 100, 100, 0.4, normalize=False, model=model, device=device).compute()
         labels = relabel_mask(relabel_sequential(labels)[0])
-        labels = np.expand_dims(labels, axis=0)
+
+        # fixing/reversing padding
+        if gt_mask.shape[0] < 512:
+            # remove padding
+            padding = 512 - gt_mask.shape[0]
+            labels = labels[padding // 2:-padding // 2, :]
+        if gt_mask.shape[1] < 512:
+            padding = 512 - gt_mask.shape[1]
+            labels = labels[:, padding // 2:-padding // 2]
 
         # save the results
-        iio.imwrite(os.path.join(results_path, img.split('.')[0] + '.tiff'), labels)
-        plt.imshow(labels[0])
+        iio.imwrite(os.path.join(results_inferences, img.split('.')[0] + '.tiff'), labels)
+        plt.imshow(labels)
         plt.title(img.split('.')[0])
         # save as
-        plt.savefig(os.path.join(results_path, img.split('.')[0] + '_inspection.png'))
+        plt.savefig(os.path.join(results_inspections, img.split('.')[0] + '.png'))
         plt.close()
         print(f"Processed {img}")
 
