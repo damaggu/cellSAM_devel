@@ -48,18 +48,22 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--num_chunks", type=int, default=8)
     parser.add_argument("--chunk", type=int, default=0)
-    parser.add_argument("--tile_size", type=int, default=1024)
+    parser.add_argument("--tile_size", type=int, default=512)
     parser.add_argument("--model_path", type=str, default=None)
     parser.add_argument("--bbox_threshold", type=float, default=0.4)
     parser.add_argument("--debug", type=int, default=0)
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--results_path", type=str, default='./results1024/')
+    parser.add_argument("--overlap", type=int, default=10)
+    parser.add_argument("--iou_depth", type=int, default=10)
+    parser.add_argument("--iou_threshold", type=float, default=0.5)
+    parser.add_argument("--data_path", type=str, default='./neurips/')
 
     args = parser.parse_args()
 
     device = f'cuda:{args.gpu}' if torch.cuda.is_available() else 'cpu'
 
-    path_to_all_imgs = './'
+    path_to_all_imgs = args.data_path
     all_images = os.listdir(path_to_all_imgs)
     all_images = [img for img in all_images if img.endswith('.X.npy')]
 
@@ -99,6 +103,8 @@ if __name__ == "__main__":
         start = 0
         end = 1
 
+    verbose = False
+
     print(f"Processing images from {start} to {end}")
     for img in tqdm(all_images[start:end]):
         print(f"Starting to process {img}")
@@ -115,9 +121,7 @@ if __name__ == "__main__":
         # if args.debug:
         #     wsi = wsi[:512, :512]
         input = da.from_array(wsi, chunks=args.tile_size)
-        # mask = segment_chunk(input, model=model, device='cuda:0', normalize=True)[0]
-        # mask = segment_chunk(input, model=model, device=device, normalize=True)[0]
-        labels = segment_wsi(input, 100, 100, 0.4, normalize=False, model=model, device=device).compute()
+        labels = segment_wsi(input, args.overlap, args.iou_depth, args.iou_threshold, normalize=False, model=model, device=device).compute()
         labels = relabel_mask(relabel_sequential(labels)[0])
 
         # fixing/reversing padding
@@ -135,7 +139,18 @@ if __name__ == "__main__":
         plt.title(img.split('.')[0])
         # save as
         plt.savefig(os.path.join(results_inspections, img.split('.')[0] + '.png'))
-        plt.close()
         print(f"Processed {img}")
+
+        if verbose:
+            plt.show()
+            plt.imshow(wsi)
+            plt.title(img.split('.')[0])
+            plt.show()
+
+            plt.imshow(gt_mask)
+            plt.title(img.split('.')[0])
+            plt.show()
+
+        plt.close()
 
     print("Done.")
