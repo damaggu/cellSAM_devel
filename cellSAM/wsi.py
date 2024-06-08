@@ -158,7 +158,10 @@ def label_adjacency_graph(labels, nlabels, depth, iou_threshold):
     for face_slice, axis in slices_and_axes:
         face = labels[face_slice]
         mapped = _across_block_iou_delayed(face, axis, iou_threshold)
-        all_mappings.append(mapped)
+        #TODO: double check this
+        if (isinstance(mapped, np.ndarray) and mapped.size == 0):
+            continue
+        all_mappings.append(mapped) # len is > 0
 
     i, j = da.concatenate(all_mappings, axis=1)
     result = _label._to_csr_matrix(i, j, nlabels + 1)
@@ -195,13 +198,16 @@ def _across_block_label_iou(face, axis, iou_threshold):
 
     labels0, labels1 = np.nonzero(iou >= iou_threshold)
 
+    #TODO: double check this
+    if labels0.size == 0 or labels1.size == 0:
+        return np.array([])  # Return an empty array if no IOUs are above the threshold
+
     labels0_orig = unique[labels0]
     labels1_orig = unique[labels1]
     grouped = np.stack([labels0_orig, labels1_orig])
 
     valid = np.all(grouped != 0, axis=0)  # Discard any mappings with bg pixels
     return grouped[:, valid]
-
 
 def get_slices_and_axes(chunks, shape, depth):
     ndim = len(shape)
