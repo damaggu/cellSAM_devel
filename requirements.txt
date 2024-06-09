@@ -7,3 +7,5 @@ torch
 numpy
 tqdm
 pytest
+dask
+dask_image
