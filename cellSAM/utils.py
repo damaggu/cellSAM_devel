@@ -25,6 +25,20 @@ def _remap_array(mask, k, v):
     mapping_ar[k] = v
     return mapping_ar[mask]
 
+def add_border(img, mask, color=None):
+    if color is None:
+        color = [1.0, 1.0, 1.0]
+    assert img.shape[:2] == mask.shape
+    assert img.shape[2] == 3
+    assert len(img.shape) == 3
+
+    boundary = _mask_outline(mask)
+    img = np.array(img)  # copy
+    r, c = np.where(np.isclose(1.0, boundary))
+    img[r, c] = color
+    return img
+
+
 def f1_score(pred, target):
     """ adapted from deepcell """
 
