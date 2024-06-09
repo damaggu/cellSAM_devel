@@ -10,6 +10,8 @@ from .model import segment_cellular_image
 def segment_wsi(X, overlap_depth: int=64, **segmentation_kwargs):
     """ Wholeslide segmentation function. Performs segmentation by tiling image with some overlap,
      computing segmentations, and stitching cells together using connected components.
+     Note that segment_wsi does _not_ presently havethe same return signature as segment_cellular_image;
+     in particular, it does not include embeddings or bounding boxes. 
 
     Args:
         X: np.ndarray, shape (H, W, C)
