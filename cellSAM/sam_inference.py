@@ -237,6 +237,9 @@ class CellSAM(nn.Module):
         # B, N, 4
         if not fast:
             boxes_per_heatmap = boxes_per_heatmap[0]
+        
+        if boxes_per_heatmap[0].numel() == 0:
+            return [], [], x, []
 
 
         low_masks = []
@@ -300,7 +303,7 @@ class CellSAM(nn.Module):
 
 
         if low_masks == []:
-            return None
+            return [], [], x, []
         
 
         if fast:

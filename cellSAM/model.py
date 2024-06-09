@@ -122,7 +122,8 @@ def segment_cellular_image(
         model, img = model.to(device), img.to(device)
 
     preds = model.predict(img, x=None, boxes_per_heatmap=bounding_boxes, device=device, fast=fast)
-    if preds is None:
+    # no bounding boxes detected
+    if preds[-1] == []:
         warn("No cells detected in the image.")
         return np.zeros(img.shape[1:], dtype=np.int32), None, None
 
