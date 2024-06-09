@@ -16,7 +16,9 @@ dependencies = [
     'torch',
     'torchvision==0.15.1',
     'tqdm',
-    'pytest'
+    'pytest',
+    'dask',
+    'dask_image',
 ]
 
 [project.optional-dependencies]
