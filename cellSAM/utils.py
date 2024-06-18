@@ -1,7 +1,8 @@
 import numpy as np
 from scipy import ndimage
 from scipy.ndimage import binary_fill_holes, find_objects
-from skimage.exposure import equalize_adapthist, rescale_intensity
+from skimage import exposure
+from skimage.exposure import equalize_adapthist, rescale_intensity, adjust_gamma
 from skimage.measure import regionprops
 from skimage.segmentation import relabel_sequential
 from scipy.stats import hmean
@@ -72,7 +73,14 @@ def _histogram_normalization(image, kernel_size=128):
             continue
 
         X = rescale_intensity(X, out_range=(0.0, 1.0))
+        # X = equalize_adapthist(X, kernel_size=kernel_size, clip_limit=0.1, nbins=256)
         X = equalize_adapthist(X, kernel_size=kernel_size)
+
+        # adjust histogram if cells not found
+        # X = adjust_gamma(X, gamma=3.0) #1.5
+        X = exposure.adjust_log(X, 1.5)
+        #TODO: histogram matchin
+        # https://scikit-image.org/docs/stable/api/skimage.exposure.html#skimage.exposure.match_histograms
         image[:, :, channel] = X
 
     return image
