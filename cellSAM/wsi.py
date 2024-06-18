@@ -46,10 +46,10 @@ def segment_wsi(image, overlap, iou_depth, iou_threshold, **segmentation_kwargs)
         image = image[..., None]
 
     image = da.asarray(image)
-    image = image.rechunk({-1: -1})  # Keep color channel together
+    image = image.rechunk({-1: -1}, balance=True)
 
     depth = (overlap, overlap)
-    boundary = "reflect"
+    boundary = "periodic"
     image = da.overlap.overlap(image, depth + (0,), boundary)
 
     block_iter = zip(
