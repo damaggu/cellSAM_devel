@@ -17,7 +17,6 @@ from cellSAM.wsi import segment_chunk, segment_wsi
 from cellSAM.model import get_local_model, get_model
 
 
-
 def mask_outline(mask):
     """got this from Ross. the boundaries end up being slightly thinner than skimage"""
     outline = np.zeros_like(mask, dtype=np.uint8)
@@ -48,16 +47,18 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--num_chunks", type=int, default=8)
     parser.add_argument("--chunk", type=int, default=0)
-    parser.add_argument("--tile_size", type=int, default=512)
+    parser.add_argument("--tile_size", type=int, default=256)
     parser.add_argument("--model_path", type=str, default=None)
     parser.add_argument("--bbox_threshold", type=float, default=0.4)
     parser.add_argument("--debug", type=int, default=0)
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--results_path", type=str, default='./results1024/')
-    parser.add_argument("--overlap", type=int, default=10)
-    parser.add_argument("--iou_depth", type=int, default=10)
+    parser.add_argument("--overlap", type=int, default=100)
+    parser.add_argument("--iou_depth", type=int, default=100)
     parser.add_argument("--iou_threshold", type=float, default=0.5)
     parser.add_argument("--data_path", type=str, default='./neurips/')
+
+    # TODO: adaptive tiling, adaptive overlap, adaptive CLAHE
 
     args = parser.parse_args()
 
@@ -70,13 +71,21 @@ if __name__ == "__main__":
     if bool(args.debug):
         # all_images = all_images[:8]
         # all_images = ['cell_00041.b0.X.npy']
+        # all_images = ['cell_00028.b0.X.npy']
+
         # all_images = ['cell_00044.b0.X.npy']
-        # all_images = ['cell_00001.b0.X.npy']
-        all_images = ['cell_00027.b0.X.npy']
+        # all_images = ['cell_00023.b0.X.npy']
+        # all_images = ['cell_00027.b0.X.npy']
+        # all_images = ['cell_00028.b0.X.npy']
+
+        # all_images = ['TestHidden_012.b0.X.npy']
+        # all_images = ['TestHidden_020.b0.X.npy']
+        all_images = ['TestHidden_318.b0.X.npy']
     else:
         import matplotlib
+
         matplotlib.use('Agg')
-        
+
     results_inferences = os.path.join(args.results_path, 'inferences')
     results_inspections = os.path.join(args.results_path, 'inspections')
     os.makedirs(results_inferences, exist_ok=True)
@@ -103,7 +112,8 @@ if __name__ == "__main__":
         start = 0
         end = 1
 
-    verbose = False
+    verbose = True
+    plt_gt = False
 
     print(f"Processing images from {start} to {end}")
     for img in tqdm(all_images[start:end]):
@@ -113,25 +123,42 @@ if __name__ == "__main__":
         # except:
         #     wsi = cv2.imread(os.path.join(path_to_all_imgs, img))
         #     wsi = cv2.cvtColor(wsi, cv2.COLOR_BGR2RGB)
-        wsi = np.load(os.path.join(path_to_all_imgs, img)).transpose((1,2,0))
+        wsi = np.load(os.path.join(path_to_all_imgs, img)).transpose((1, 2, 0))
         # gt_mask = np.load(os.path.join(path_to_all_imgs, img.replace('.X.npy', '.y.npy')))
-        gt_path = "./evals/tuning/labels/" + img.split('.')[0] + '_label.tiff'
-        gt_mask = iio.imread(gt_path)
+        if plt_gt:
+            gt_path = "./evals/tuning/labels/" + img.split('.')[0] + '_label.tiff'
+            gt_mask = iio.imread(gt_path)
 
         # if args.debug:
         #     wsi = wsi[:512, :512]
+
         input = da.from_array(wsi, chunks=args.tile_size)
-        labels = segment_wsi(input, args.overlap, args.iou_depth, args.iou_threshold, normalize=False, model=model, device=device, bbox_threshold=args.bbox_threshold).compute()
+
+        ### rerunning with different preprocessing if no cells are found
+        try:
+            labels = segment_wsi(input, args.overlap, args.iou_depth, args.iou_threshold, normalize=False, model=model,
+                                 device=device, bbox_threshold=args.bbox_threshold).compute()
+            if len(np.unique(labels)) < 5:
+                labels = segment_wsi(input, args.overlap, args.iou_depth, args.iou_threshold, normalize=True,
+                                     model=model,
+                                     device=device, bbox_threshold=args.bbox_threshold).compute()
+        except ZeroDivisionError:
+            print('except')
+            labels = segment_wsi(input, args.overlap, args.iou_depth, args.iou_threshold, normalize=True, model=model,
+                                 device=device, bbox_threshold=args.bbox_threshold).compute()
         labels = relabel_mask(relabel_sequential(labels)[0])
 
-        # fixing/reversing padding
-        if gt_mask.shape[0] < 512:
-            # remove padding
-            padding = 512 - gt_mask.shape[0]
-            labels = labels[padding // 2:-padding // 2, :]
-        if gt_mask.shape[1] < 512:
-            padding = 512 - gt_mask.shape[1]
-            labels = labels[:, padding // 2:-padding // 2]
+
+        ### reshaping based on gt label
+        if plt_gt:
+            # fixing/reversing padding
+            if gt_mask.shape[0] < 512:
+                # remove padding
+                padding = 512 - gt_mask.shape[0]
+                labels = labels[padding // 2:-padding // 2, :]
+            if gt_mask.shape[1] < 512:
+                padding = 512 - gt_mask.shape[1]
+                labels = labels[:, padding // 2:-padding // 2]
 
         # save the results
         iio.imwrite(os.path.join(results_inferences, img.split('.')[0] + '.tiff'), labels)
@@ -147,9 +174,10 @@ if __name__ == "__main__":
             plt.title(img.split('.')[0])
             plt.show()
 
-            plt.imshow(gt_mask)
-            plt.title(img.split('.')[0])
-            plt.show()
+            if plt_gt:
+                plt.imshow(gt_mask)
+                plt.title(img.split('.')[0])
+                plt.show()
 
         plt.close()
 
