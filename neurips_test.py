@@ -1,9 +1,11 @@
 import os
 import cv2
 import torch
+import skimage
 import argparse
 
 import numpy as np
+import pickle as pkl
 import dask.array as da
 import imageio.v3 as iio
 import lightning.pytorch as pl
@@ -14,7 +16,7 @@ from skimage.segmentation import relabel_sequential
 
 from cellSAM.utils import relabel_mask
 from cellSAM.wsi import segment_chunk, segment_wsi
-from cellSAM.model import get_local_model, get_model
+from cellSAM.model import get_local_model, get_model, segment_cellular_image
 
 
 def mask_outline(mask):
@@ -37,6 +39,10 @@ def add_white_borders(img, mask, color=None):
     r, c = np.where(np.isclose(1.0, boundary))
     img[r, c] = color
     return img
+
+# Function to check if a string contains any number from the list
+def contains_any_number(s, numbers):
+    return any(num in s for num in numbers)
 
 
 if __name__ == "__main__":
@@ -116,8 +122,19 @@ if __name__ == "__main__":
     plt_gt = False
 
     print(f"Processing images from {start} to {end}")
+
+
+    if 'tuning' in path_to_all_imgs:
+        data = set(pkl.load(open('bloodcell_pths_tuning.pkl', 'rb')))
+    elif 'hidden' in path_to_all_imgs:
+        data = set(pkl.load(open('/home/rdilip/cellSAM_debug_space/bloodcell_pths.pkl', 'rb')))
+    else:
+        raise ValueError("Unknown dataset")
+
     for img in tqdm(all_images[start:end]):
         print(f"Starting to process {img}")
+
+        base = img.split('.')[0]
         # try:
         #     wsi = iio.imread(os.path.join(path_to_all_imgs, img))[:, :, [0, 2, 1]]
         # except:
@@ -131,21 +148,27 @@ if __name__ == "__main__":
 
         # if args.debug:
         #     wsi = wsi[:512, :512]
+        if base in data:
+            # now we do percentiling
+            ch = 1 # just take second channel, works better empirically
+            pl, ph = np.percentile(wsi[...,ch], (0, 30))
+            inp = skimage.exposure.rescale_intensity(wsi[...,ch], in_range=(pl, ph))
+            labels = segment_cellular_image(inp, normalize=False, device=device)[0]
+        else:
+            input = da.from_array(wsi, chunks=args.tile_size)
 
-        input = da.from_array(wsi, chunks=args.tile_size)
-
-        ### rerunning with different preprocessing if no cells are found
-        try:
-            labels = segment_wsi(input, args.overlap, args.iou_depth, args.iou_threshold, normalize=False, model=model,
-                                 device=device, bbox_threshold=args.bbox_threshold).compute()
-            if len(np.unique(labels)) < 5:
-                labels = segment_wsi(input, args.overlap, args.iou_depth, args.iou_threshold, normalize=True,
-                                     model=model,
-                                     device=device, bbox_threshold=args.bbox_threshold).compute()
-        except ZeroDivisionError:
-            print('except')
-            labels = segment_wsi(input, args.overlap, args.iou_depth, args.iou_threshold, normalize=True, model=model,
-                                 device=device, bbox_threshold=args.bbox_threshold).compute()
+            ### rerunning with different preprocessing if no cells are found
+            try:
+                labels = segment_wsi(input, args.overlap, args.iou_depth, args.iou_threshold, normalize=False, model=model,
+                                    device=device, bbox_threshold=args.bbox_threshold).compute()
+                if len(np.unique(labels)) < 5:
+                    labels = segment_wsi(input, args.overlap, args.iou_depth, args.iou_threshold, normalize=True,
+                                        model=model,
+                                        device=device, bbox_threshold=args.bbox_threshold).compute()
+            except ZeroDivisionError:
+                print('except')
+                labels = segment_wsi(input, args.overlap, args.iou_depth, args.iou_threshold, normalize=True, model=model,
+                                    device=device, bbox_threshold=args.bbox_threshold).compute()
         labels = relabel_mask(relabel_sequential(labels)[0])
 
 
