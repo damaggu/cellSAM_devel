@@ -9,7 +9,7 @@ import torch.optim as optim
 import lightning.pytorch as pl
 import torch.nn.functional as F
 
-from torchvision import transforms
+from torchvision import transforms, models
 from torch.utils.data import Dataset, DataLoader
 
 
@@ -122,8 +122,16 @@ if __name__ == "__main__":
 
 
     # Instantiate the model, loss function, and optimizer
-    model = SimpleCNN().to(device)  # Move the model to the GPU
-    criterion = nn.CrossEntropyLoss()
+    # model = SimpleCNN().to(device)  # Move the model to the GPU
+
+    # Load a pretrained ResNet model and modify it for binary classification
+    model = models.resnet50(pretrained=True)
+    num_features = model.fc.in_features
+    model.fc = nn.Linear(num_features, 1)  # Modify the final layer for binary classification
+    model = model.to(device)  # Move the model to the GPU
+
+    # criterion = nn.CrossEntropyLoss()
+    criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=1e-3)
 
     # Training loop
@@ -132,10 +140,10 @@ if __name__ == "__main__":
         running_loss = 0.0
         for inputs, labels in train_loader:
             # Move data to the GPU
-            inputs, labels = inputs.to(device), labels.to(device)
+            inputs, labels = inputs.to(device), labels.to(device).float()
 
             optimizer.zero_grad()
-            outputs = model(inputs)
+            outputs = model(inputs).squeeze()
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
@@ -151,13 +159,13 @@ if __name__ == "__main__":
         total = 0
         with torch.no_grad():
             for inputs, labels in val_loader:
-                inputs, labels = inputs.to(device), labels.to(device)
-                outputs = model(inputs)
+                inputs, labels = inputs.to(device), labels.to(device).float()
+                outputs = model(inputs).squeeze()
                 loss = criterion(outputs, labels)
                 val_loss += loss.item()
-                _, predicted = torch.max(outputs.data, 1)
+                preds = torch.round(torch.sigmoid(outputs))  # Use sigmoid to get probabilities, then round to 0 or 1
+                correct += (preds == labels).sum().item()
                 total += labels.size(0)
-                correct += (predicted == labels).sum().item()
 
         print(f"Validation Loss: {val_loss/len(val_loader):.4f}, Accuracy: {100 * correct / total:.2f}%")
         print()
