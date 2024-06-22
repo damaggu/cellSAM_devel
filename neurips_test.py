@@ -1,6 +1,7 @@
 import os
 import cv2
 import torch
+import joblib
 import skimage
 import argparse
 
@@ -12,6 +13,7 @@ import lightning.pytorch as pl
 import matplotlib.pyplot as plt
 
 from tqdm import tqdm
+from scipy.signal import find_peaks
 from skimage.segmentation import relabel_sequential
 
 from cellSAM.utils import relabel_mask
@@ -45,6 +47,41 @@ def contains_any_number(s, numbers):
     return any(num in s for num in numbers)
 
 
+def featurizer(clf,img):
+    """ img is H, W, C """
+    data = img[..., 1:].ravel()
+    counts, bins = np.histogram(data, bins=40, density=True)
+    n_peaks = len(find_peaks(counts, height=0.5)[0])    
+    
+    feature = np.array([np.mean(data), np.std(data), n_peaks])
+    is_big_bc = clf.predict(feature.reshape(1, -1))
+
+    return is_big_bc
+
+
+def resize_results(save_dir, img_dir, results_dir, gt_dir):
+    all_images = os.listdir(img_dir)
+    all_images = sorted([img for img in all_images if img.endswith('.X.npy')])
+
+    os.makedirs(save_dir, exist_ok=True)
+    for img in all_images:
+        gt_path =  os.path.join(gt_dir, img.split('.')[0] + '_label.tiff')
+        gt_mask = iio.imread(gt_path)
+
+        label_path = os.path.join(results_dir, img.split('.')[0] + '.tiff')
+        labels = iio.imread(label_path)
+
+        if gt_mask.shape[0] < 512:
+            # remove padding
+            padding = 512 - gt_mask.shape[0]
+            labels = labels[padding // 2:-padding // 2, :]
+        if gt_mask.shape[1] < 512:
+            padding = 512 - gt_mask.shape[1]
+            labels = labels[:, padding // 2:-padding // 2]
+
+        iio.imwrite(os.path.join(save_dir, img.split('.')[0] + '.tiff'), labels)
+
+
 if __name__ == "__main__":
     # fix the seed
     pl.seed_everything(42)
@@ -72,7 +109,7 @@ if __name__ == "__main__":
 
     path_to_all_imgs = args.data_path
     all_images = os.listdir(path_to_all_imgs)
-    all_images = [img for img in all_images if img.endswith('.X.npy')]
+    all_images = sorted([img for img in all_images if img.endswith('.X.npy')])
 
     if bool(args.debug):
         # all_images = all_images[:8]
@@ -86,7 +123,8 @@ if __name__ == "__main__":
 
         # all_images = ['TestHidden_012.b0.X.npy']
         # all_images = ['TestHidden_020.b0.X.npy']
-        all_images = ['TestHidden_318.b0.X.npy']
+        # all_images = ['TestHidden_318.b0.X.npy']
+        all_images = ['cell_00032.b0.X.npy']
     else:
         import matplotlib
 
@@ -124,13 +162,18 @@ if __name__ == "__main__":
     print(f"Processing images from {start} to {end}")
 
 
-    if 'tuning' in path_to_all_imgs:
-        data = set(pkl.load(open('bloodcell_pths_tuning.pkl', 'rb')))
-    elif 'hidden' in path_to_all_imgs:
-        data = set(pkl.load(open('/home/rdilip/cellSAM_debug_space/bloodcell_pths.pkl', 'rb')))
-    else:
-        raise ValueError("Unknown dataset")
+    # if 'tuning' in path_to_all_imgs:
+    #     data = set(pkl.load(open('bloodcell_pths_tuning.pkl', 'rb')))
+    # elif 'hidden' in path_to_all_imgs:
+    #     data = set(pkl.load(open('/home/rdilip/cellSAM_debug_space/bloodcell_pths.pkl', 'rb')))
+    # else:
+    #     raise ValueError("Unknown dataset")
 
+    # import bloodcell classifier
+    # clf = joblib.load('/home/rdilip/cellSAM_debug_space/bc.pkl')
+    clf = joblib.load('/home/rdilip/cellSAM_debug_space/xgboost_classifier.pkl')
+
+    flagged = []
     for img in tqdm(all_images[start:end]):
         print(f"Starting to process {img}")
 
@@ -140,21 +183,64 @@ if __name__ == "__main__":
         # except:
         #     wsi = cv2.imread(os.path.join(path_to_all_imgs, img))
         #     wsi = cv2.cvtColor(wsi, cv2.COLOR_BGR2RGB)
-        wsi = np.load(os.path.join(path_to_all_imgs, img)).transpose((1, 2, 0))
+        img_pth = os.path.join(path_to_all_imgs, img)
+        wsi = np.load(img_pth).transpose((1, 2, 0))
         # gt_mask = np.load(os.path.join(path_to_all_imgs, img.replace('.X.npy', '.y.npy')))
         if plt_gt:
             gt_path = "./evals/tuning/labels/" + img.split('.')[0] + '_label.tiff'
             gt_mask = iio.imread(gt_path)
 
+        ### OLD CLASSIFER SHIT ####
+        # get image features for cell classifier
+        # features = np.histogram(wsi[1:].ravel(), bins=40, density=True)[0]
+        # is_bc = clf.predict(features.reshape(1, -1))
+
+        # use_wsi = True
+        # if is_bc:
+        #     # initial test of mask size to tell if WSI is necessary
+        #     init_mask = segment_cellular_image(wsi, model=model, normalize=False, device=device)[0]
+        #     print('num cells', np.unique(init_mask).shape[0])
+        #     if np.unique(init_mask).shape[0] == 1:
+        #         print('no cells setting is_small true ')
+        #         is_small = True
+        #     else:
+        #         print()
+        #         print('wrong spot - else of unique')
+        #         props = skimage.measure.regionprops(init_mask)
+        #         is_small = (np.mean([p.area for p in props]) / np.prod(wsi.shape[1:])) < 0.01
+            
+
+        #     if not is_small:
+        #         print()
+        #         print('wrong spot - if not is_small')
+        #         print()
+        #         # these cases are generally h&e where information is shared between second and third
+        #         # channels. empirically using one works a bit better than using both
+        #         pl, ph = np.percentile(wsi[...,1], (0, 30))
+        #         inp_new = np.zeros_like(wsi)
+        #         inp_new[...,-1] = skimage.exposure.rescale_intensity(wsi[...,1], in_range=(pl, ph))
+        #         wsi = inp_new
+        #         use_wsi = False
+        #################################
+
+        # New Classiefer Stuff
+        use_wsi = featurizer(clf, wsi)[0] == 1
+
         # if args.debug:
         #     wsi = wsi[:512, :512]
-        if base in data:
+        if not use_wsi:
             # now we do percentiling
-            ch = 1 # just take second channel, works better empirically
-            pl, ph = np.percentile(wsi[...,ch], (0, 30))
-            inp = skimage.exposure.rescale_intensity(wsi[...,ch], in_range=(pl, ph))
-            labels = segment_cellular_image(inp, normalize=False, device=device)[0]
-        else:
+            # pl, ph = np.percentile(wsi[...,1], (0, 30))
+            # inp_new = np.zeros_like(wsi)
+            # inp_new[...,-1] = skimage.exposure.rescale_intensity(wsi[...,1], in_range=(pl, ph))
+            # wsi = inp_new
+            labels = segment_cellular_image(wsi, model=model, normalize=False, device=device)[0]
+
+            if len(np.unique(labels)) == 1:
+                flagged.append(img_pth)
+                use_wsi = True
+                
+        if use_wsi:
             input = da.from_array(wsi, chunks=args.tile_size)
 
             ### rerunning with different preprocessing if no cells are found
@@ -170,7 +256,6 @@ if __name__ == "__main__":
                 labels = segment_wsi(input, args.overlap, args.iou_depth, args.iou_threshold, normalize=True, model=model,
                                     device=device, bbox_threshold=args.bbox_threshold).compute()
         labels = relabel_mask(relabel_sequential(labels)[0])
-
 
         ### reshaping based on gt label
         if plt_gt:
@@ -191,6 +276,7 @@ if __name__ == "__main__":
         plt.savefig(os.path.join(results_inspections, img.split('.')[0] + '.png'))
         print(f"Processed {img}")
 
+        verbose = False
         if verbose:
             plt.show()
             plt.imshow(wsi)
