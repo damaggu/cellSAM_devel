@@ -1,4 +1,5 @@
 import json
+import argparse
 
 import numpy as np
 import pandas as pd
@@ -38,8 +39,14 @@ def compute_acc(dict, annotations):
 
 if __name__ == "__main__":
 
+    # argsparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--ann_type', type=str, default='tune', help='tune or hidden')
+    parser.add_argument('--json_folder', type=str, default='results_tune_test2', help='folder name')
+
+    args = parser.parse_args()
     # ANNOTATION TYPE
-    ANN_TYPE = 'tune'  # 'tune' or 'hidden'
+    ANN_TYPE = args.ann_type
 
     # get annotation values
     ## load labels from csv files
@@ -62,7 +69,7 @@ if __name__ == "__main__":
 
     # json_folder = 'results_hidden_test2'
     # json_folder = 'results_tune_test2_nopreproc'
-    json_folder = 'results_tune_test2'
+    json_folder = args.json_folder
     json_path = joson_path_root + json_folder + '/' + json_file_name
     with open(json_path) as f:
         data = json.load(f)
@@ -80,5 +87,3 @@ if __name__ == "__main__":
         raise ValueError('ANN_TYPE should be either tune or hidden')
     
     print(f'{ANN_TYPE} accuracy: {acc}')
-
-    print('htest')

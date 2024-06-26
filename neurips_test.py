@@ -116,7 +116,7 @@ if __name__ == "__main__":
     all_images = sorted([img for img in all_images if img.endswith('.X.npy')])
 
     if bool(args.debug):
-        # all_images = all_images[:8]
+        all_images = all_images[:8]
         # all_images = ['cell_00041.b0.X.npy']
         # all_images = ['cell_00028.b0.X.npy']
 
@@ -127,7 +127,7 @@ if __name__ == "__main__":
         # 'TestHidden_043'
         # all_images = ['TestHidden_012.b0.X.npy']
         # all_images = ['TestHidden_020.b0.X.npy']
-        all_images = ['TestHidden_043.b0.X.npy']
+        # all_images = ['TestHidden_043.b0.X.npy']
         # all_images = ['cell_00032.b0.X.npy']
     else:
         import matplotlib
@@ -173,8 +173,12 @@ if __name__ == "__main__":
     if use_gt:
         if 'tuning' in path_to_all_imgs:
             data = set(pkl.load(open('bloodcell_pths_tuning.pkl', 'rb')))
+            # remove extentions
+            data = {filename.split('.')[0] for filename in data}
         elif 'hidden' in path_to_all_imgs:
             data = set(pkl.load(open('/home/rdilip/cellSAM_debug_space/bloodcell_pths.pkl', 'rb')))
+            # remove extentions
+            data = {filename.split('.')[0] for filename in data}
         else:
             raise ValueError("Unknown dataset")
 
