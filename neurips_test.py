@@ -116,7 +116,7 @@ if __name__ == "__main__":
     all_images = sorted([img for img in all_images if img.endswith('.X.npy')])
 
     if bool(args.debug):
-        all_images = all_images[:8]
+        all_images = all_images[:28]
         # all_images = ['cell_00041.b0.X.npy']
         # all_images = ['cell_00028.b0.X.npy']
 
