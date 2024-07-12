@@ -48,13 +48,24 @@ def contains_any_number(s, numbers):
     return any(num in s for num in numbers)
 
 
-def featurizer(clf,img):
+# def featurizer(clf,img):
+#     """ img is H, W, C """
+#     data = img[..., 1:].ravel()
+#     counts, bins = np.histogram(data, bins=40, density=True)
+#     n_peaks = len(find_peaks(counts, height=0.5)[0])    
+    
+#     feature = np.array([np.mean(data), np.std(data), n_peaks])
+#     is_big_bc = clf.predict(feature.reshape(1, -1))
+
+#     return is_big_bc
+
+def featurizer(clf, img):
     """ img is H, W, C """
     data = img[..., 1:].ravel()
     counts, bins = np.histogram(data, bins=40, density=True)
     n_peaks = len(find_peaks(counts, height=0.5)[0])    
     
-    feature = np.array([np.mean(data), np.std(data), n_peaks])
+    feature = np.array([np.mean(data), np.std(data), n_peaks, *img.shape[:-1]])
     is_big_bc = clf.predict(feature.reshape(1, -1))
 
     return is_big_bc
@@ -165,8 +176,8 @@ if __name__ == "__main__":
     use_preproc = bool(args.preproc)
     use_gt = bool(args.use_gt)
 
-    if plt_gt:
-        assert 'tuning' in path_to_all_imgs, "Ground truth only available for tuning set"
+    # if plt_gt:
+    #     assert 'tuning' in path_to_all_imgs, "Ground truth only available for tuning set"
 
     print(f"Processing images from {start} to {end}")
 
@@ -183,8 +194,8 @@ if __name__ == "__main__":
             raise ValueError("Unknown dataset")
 
     # import bloodcell classifier
-    # clf = joblib.load('/home/rdilip/cellSAM_debug_space/bc.pkl')
-    clf = joblib.load('./saved_models/xgboost_classifier.pkl')
+    # clf = joblib.load('./saved_models/xgboost_classifier.pkl')
+    clf = joblib.load('./saved_models/new_classifier.pkl')
 
     wsi_imgs_flagged = []
     wsi_imgs_reg = []

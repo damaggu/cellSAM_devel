@@ -151,14 +151,18 @@ if __name__ == "__main__":
     use_preproc = bool(args.preproc)
     use_gt = bool(args.use_gt)
 
-    if plt_gt:
-        assert 'tuning' in path_to_all_imgs, "Ground truth only available for tuning set"
 
     print(f"Processing images from {start} to {end}")
 
-    # load blood cell labels
-    data = set(pkl.load(open('bloodcell_pths_tuning.pkl', 'rb')))
+    ## load blood cell labels
+    # # tune data
+    # data = set(pkl.load(open('bloodcell_pths_tuning.pkl', 'rb')))
+    # data = {filename.split('.')[0] for filename in data}
+
+    # hidden data
+    data = set(pkl.load(open('/home/rdilip/cellSAM_debug_space/bloodcell_pths.pkl', 'rb')))
     data = {filename.split('.')[0] for filename in data}
+
     # filter images based on blood cell data
     all_images = [img for img in all_images if img.split('.')[0] in data]
 
@@ -177,8 +181,8 @@ if __name__ == "__main__":
         
         
         # loading gt mask
-        gt_path = "./evals/tuning/labels/" + img.split('.')[0] + '_label.tiff'
-        gt_mask = iio.imread(gt_path)
+        # gt_path = "./evals/tuning/labels/" + img.split('.')[0] + '_label.tiff'
+        # gt_mask = iio.imread(gt_path)
 
 
 
@@ -212,18 +216,18 @@ if __name__ == "__main__":
             
         wsi_labels = relabel_mask(relabel_sequential(wsi_labels)[0])
 
-        # fixing/reversing padding
-        if gt_mask.shape[0] < 512:
-            # remove padding
-            padding = 512 - gt_mask.shape[0]
-            preproc_nowsi_labels = preproc_nowsi_labels[padding // 2:-padding // 2, :]
-            nopreproc_nowsi_labels = nopreproc_nowsi_labels[padding // 2:-padding // 2, :]
-            wsi_labels = wsi_labels[padding // 2:-padding // 2, :]
-        if gt_mask.shape[1] < 512:
-            padding = 512 - gt_mask.shape[1]
-            preproc_nowsi_labels = preproc_nowsi_labels[:, padding // 2:-padding // 2]
-            nopreproc_nowsi_labels = nopreproc_nowsi_labels[:, padding // 2:-padding // 2]
-            wsi_labels = wsi_labels[:, padding // 2:-padding // 2]
+        # # fixing/reversing padding
+        # if gt_mask.shape[0] < 512:
+        #     # remove padding
+        #     padding = 512 - gt_mask.shape[0]
+        #     preproc_nowsi_labels = preproc_nowsi_labels[padding // 2:-padding // 2, :]
+        #     nopreproc_nowsi_labels = nopreproc_nowsi_labels[padding // 2:-padding // 2, :]
+        #     wsi_labels = wsi_labels[padding // 2:-padding // 2, :]
+        # if gt_mask.shape[1] < 512:
+        #     padding = 512 - gt_mask.shape[1]
+        #     preproc_nowsi_labels = preproc_nowsi_labels[:, padding // 2:-padding // 2]
+        #     nopreproc_nowsi_labels = nopreproc_nowsi_labels[:, padding // 2:-padding // 2]
+        #     wsi_labels = wsi_labels[:, padding // 2:-padding // 2]
 
         # save the results
         iio.imwrite(os.path.join(results_inferences_preproc_nowsi, img.split('.')[0] + '.tiff'), preproc_nowsi_labels)
