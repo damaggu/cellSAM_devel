@@ -13,6 +13,7 @@ import imageio.v3 as iio
 import lightning.pytorch as pl
 import matplotlib.pyplot as plt
 
+from glob import glob
 from tqdm import tqdm
 from scipy.signal import find_peaks
 from skimage.segmentation import relabel_sequential
@@ -136,7 +137,7 @@ if __name__ == "__main__":
         # all_images = ['cell_00027.b0.X.npy']
         # all_images = ['cell_00028.b0.X.npy']
         # 'TestHidden_043'
-        # all_images = ['TestHidden_012.b0.X.npy']
+        all_images = ['TestHidden_073.b0.X.npy']
         # all_images = ['TestHidden_020.b0.X.npy']
         # all_images = ['TestHidden_043.b0.X.npy']
         # all_images = ['cell_00032.b0.X.npy']
@@ -144,6 +145,9 @@ if __name__ == "__main__":
         import matplotlib
 
         matplotlib.use('Agg')
+
+    hidden_raw_imgs = glob('/data/user-data/rdilip/cellSAM/raw/neurips/Testing/Hidden/images/*')
+    tune_raw_imgs = glob('/data/user-data/rdilip/cellSAM/raw/neurips/Tuning/images/*')
 
     results_inferences = os.path.join(args.results_path, 'inferences')
     results_inspections = os.path.join(args.results_path, 'inspections')
@@ -219,8 +223,24 @@ if __name__ == "__main__":
             # gt_mask = np.load(os.path.join(path_to_all_imgs, img.replace('.X.npy', '.y.npy'))).transpose((1, 2, 0))
             
             # load from markus path (.tiff files)
-            gt_path = "./evals/tuning/labels/" + img.split('.')[0] + '_label.tiff'
-            gt_mask = iio.imread(gt_path)
+            if 'val' in path_to_all_imgs:
+                # /data/user-data/rdilip/cellSAM/raw/neurips/Tuning/images/
+                gt_label_path = "./evals/tuning/labels/" + img.split('.')[0] + '_label.tiff'
+                gt_mask = iio.imread(gt_label_path)
+
+                gt_path = [s for s in tune_raw_imgs if base in s]
+                if len(gt_path) > 1:
+                    raise ValueError("More than one ground truth image found")
+                gt_img = iio.imread(gt_path[0])
+            elif 'hidden' in path_to_all_imgs:
+                # /data/user-data/rdilip/cellSAM/raw/neurips/Testing/Hidden/images/
+                gt_path = [s for s in hidden_raw_imgs if base in s]
+                if len(gt_path) > 1:
+                    raise ValueError("More than one ground truth image found")
+                gt_img = iio.imread(gt_path[0])
+            else:
+                raise ValueError("Unknown dataset")
+                
 
 
         if use_gt:
@@ -271,26 +291,27 @@ if __name__ == "__main__":
         ### reshaping based on gt label
         if plt_gt:
             # fixing/reversing padding
-            if gt_mask.shape[0] < 512:
+            if gt_img.shape[0] < 512:
                 # remove padding
-                padding = 512 - gt_mask.shape[0]
+                padding = 512 - gt_img.shape[0]
                 labels = labels[padding // 2:-padding // 2, :]
-            if gt_mask.shape[1] < 512:
-                padding = 512 - gt_mask.shape[1]
+            if gt_img.shape[1] < 512:
+                padding = 512 - gt_img.shape[1]
                 labels = labels[:, padding // 2:-padding // 2]
 
         # save the results
         iio.imwrite(os.path.join(results_inferences, img.split('.')[0] + '.tiff'), labels)
 
-        if plt_gt:
+        if plt_gt and 'val' in path_to_all_imgs:
             # save plots of predicted mask with ground truth
+            pass
             fig, ax = plt.subplots(1, 2, figsize=(10, 5))
             ax[0].imshow(labels)
             ax[0].set_title('Predicted')
             ax[1].imshow(gt_mask)
             ax[1].set_title('Ground Truth')
             plt.savefig(os.path.join(results_inspections, img.split('.')[0] + '.png'))
-        else:
+        elif plt_gt:
             # save plots of predicted mask
             plt.imshow(labels)
             plt.title(img.split('.')[0])
