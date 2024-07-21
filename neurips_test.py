@@ -14,6 +14,8 @@ import lightning.pytorch as pl
 import matplotlib.pyplot as plt
 
 from glob import glob
+
+from skimage.exposure import adjust_gamma, equalize_adapthist
 from tqdm import tqdm
 from scipy.signal import find_peaks
 from skimage.segmentation import relabel_sequential
@@ -44,6 +46,7 @@ def add_white_borders(img, mask, color=None):
     img[r, c] = color
     return img
 
+
 # Function to check if a string contains any number from the list
 def contains_any_number(s, numbers):
     return any(num in s for num in numbers)
@@ -54,7 +57,7 @@ def contains_any_number(s, numbers):
 #     data = img[..., 1:].ravel()
 #     counts, bins = np.histogram(data, bins=40, density=True)
 #     n_peaks = len(find_peaks(counts, height=0.5)[0])    
-    
+
 #     feature = np.array([np.mean(data), np.std(data), n_peaks])
 #     is_big_bc = clf.predict(feature.reshape(1, -1))
 
@@ -64,8 +67,8 @@ def featurizer(clf, img):
     """ img is H, W, C """
     data = img[..., 1:].ravel()
     counts, bins = np.histogram(data, bins=40, density=True)
-    n_peaks = len(find_peaks(counts, height=0.5)[0])    
-    
+    n_peaks = len(find_peaks(counts, height=0.5)[0])
+
     feature = np.array([np.mean(data), np.std(data), n_peaks, *img.shape[:-1]])
     is_big_bc = clf.predict(feature.reshape(1, -1))
 
@@ -78,7 +81,7 @@ def resize_results(save_dir, img_dir, results_dir, gt_dir):
 
     os.makedirs(save_dir, exist_ok=True)
     for img in all_images:
-        gt_path =  os.path.join(gt_dir, img.split('.')[0] + '_label.tiff')
+        gt_path = os.path.join(gt_dir, img.split('.')[0] + '_label.tiff')
         gt_mask = iio.imread(gt_path)
 
         label_path = os.path.join(results_dir, img.split('.')[0] + '.tiff')
@@ -137,8 +140,19 @@ if __name__ == "__main__":
         # all_images = ['cell_00027.b0.X.npy']
         # all_images = ['cell_00028.b0.X.npy']
         # 'TestHidden_043'
-        all_images = ['TestHidden_073.b0.X.npy']
+        # all_images = ['TestHidden_056.b0.X.npy']
         # all_images = ['TestHidden_020.b0.X.npy']
+        # all_images = ['TestHidden_397.b0.X.npy'] # large
+        # all_images = ['TestHidden_399.b0.X.npy'] # tiny
+        all_images = ['TestHidden_073.b0.X.npy'] # tiny -> low contrast
+        # all_images = ['TestHidden_398.b0.X.npy'] # medium
+        # all_images = ['TestHidden_179.b0.X.npy']  #
+        # all_images = ['TestHidden_393.b0.X.npy'] # small
+        # all_images = ['TestHidden_005.b0.X.npy'] # large
+        # all_images = ['TestHidden_047.b0.X.npy'] # medium
+        # all_images = ['TestHidden_048.b0.X.npy'] # medium
+        # all_images = ['TestHidden_060.b0.X.npy'] # medium
+        # all_images = ['TestHidden_114.b0.X.npy']  # small
         # all_images = ['TestHidden_043.b0.X.npy']
         # all_images = ['cell_00032.b0.X.npy']
     else:
@@ -201,11 +215,10 @@ if __name__ == "__main__":
     # clf = joblib.load('./saved_models/xgboost_classifier.pkl')
     clf = joblib.load('./saved_models/new_classifier.pkl')
 
-    wsi_imgs_flagged = []
-    wsi_imgs_reg = []
-    no_wsi_imgs = []
+    processing_dict = {}
     for img in tqdm(all_images[start:end]):
         print(f"Starting to process {img}")
+        processing_dict[img] = ""
 
         base = img.split('.')[0]
         # try:
@@ -215,13 +228,12 @@ if __name__ == "__main__":
         #     wsi = cv2.cvtColor(wsi, cv2.COLOR_BGR2RGB)
         img_pth = os.path.join(path_to_all_imgs, img)
         wsi = np.load(img_pth).transpose((1, 2, 0))
-        
-        
+
         # loading gt mask
         if plt_gt:
             # load from rohits path (.npy files)
             # gt_mask = np.load(os.path.join(path_to_all_imgs, img.replace('.X.npy', '.y.npy'))).transpose((1, 2, 0))
-            
+
             # load from markus path (.tiff files)
             if 'val' in path_to_all_imgs:
                 # /data/user-data/rdilip/cellSAM/raw/neurips/Tuning/images/
@@ -240,8 +252,6 @@ if __name__ == "__main__":
                 gt_img = iio.imread(gt_path[0])
             else:
                 raise ValueError("Unknown dataset")
-                
-
 
         if use_gt:
             if base in data:
@@ -252,40 +262,71 @@ if __name__ == "__main__":
             # New Classiefer Stuff
             use_wsi = featurizer(clf, wsi)[0] == 0
 
-        # if args.debug:
-        #     wsi = wsi[:512, :512]
-        if not use_wsi:
-            if use_preproc:
-                # now we do percentiling
-                pl, ph = np.percentile(wsi[...,1], (0, 30))
-                inp_new = np.zeros_like(wsi)
-                inp_new[...,-1] = skimage.exposure.rescale_intensity(wsi[...,1], in_range=(pl, ph))
-                labels = segment_cellular_image(inp_new, model=model, normalize=False, device=device)[0]
-            else:
-                labels = segment_cellular_image(wsi, model=model, normalize=False, device=device)[0]
+        processing_dict[img] += "_use_wsi" if use_wsi else ""
 
-            if len(np.unique(labels)) == 1:
-                wsi_imgs_flagged.append(img)
-                use_wsi = True
-            else:
-                no_wsi_imgs.append(img)
-                
-        if use_wsi:
-            wsi_imgs_reg.append(img)
-            input = da.from_array(wsi, chunks=args.tile_size)
 
-            ### rerunning with different preprocessing if no cells are found
-            try:
-                labels = segment_wsi(input, args.overlap, args.iou_depth, args.iou_threshold, normalize=False, model=model,
-                                    device=device, bbox_threshold=args.bbox_threshold).compute()
-                if len(np.unique(labels)) < 5:
-                    labels = segment_wsi(input, args.overlap, args.iou_depth, args.iou_threshold, normalize=True,
-                                        model=model,
-                                        device=device, bbox_threshold=args.bbox_threshold).compute()
-            except ZeroDivisionError:
-                print('except')
-                labels = segment_wsi(input, args.overlap, args.iou_depth, args.iou_threshold, normalize=True, model=model,
-                                    device=device, bbox_threshold=args.bbox_threshold).compute()
+        def is_low_contrast_clahe(image, threshold=0.0175):
+            cp = equalize_adapthist(image, kernel_size=256)
+            diff = np.abs(image - cp)
+            mean_diff = np.mean(diff)
+            return mean_diff < threshold
+
+
+        # 0.015 for low contrast images
+        # 0.08 for blod cell
+        # 0.04 for yeast
+        # 0.02 for TN
+
+        low_contrast = is_low_contrast_clahe(wsi)
+        processing_dict[img] += "_low_contrast" if low_contrast else ""
+
+        if low_contrast:
+            wsi = equalize_adapthist(wsi, kernel_size=256)
+            wsi = adjust_gamma(wsi, gamma=3)
+
+        labels = segment_cellular_image(wsi, model=model, normalize=False, device=device)[0]
+        sizes = []
+        for mask in np.unique(labels):
+            if mask == 0:
+                continue
+            area = (labels == mask).sum().item()
+            # normalizing by area
+            sizes.append(area / (labels.shape[0] * labels.shape[1]))
+        sizes = np.array(sizes)
+        # median size
+        median_size = np.median(sizes)
+
+        processing_dict[img] += f"_median_{median_size:.4f}"
+        processing_dict[img] += f"_num_{len(sizes)}"
+
+        # middle sized cells -> median = 0.0017 -> 512x512 x 150-200; num 218
+        # large, median size 0.007, num - 47;; median 0.008, num 52
+        # small -> 0.0007795, num 156;;; median 0.00111
+        # if len(sizes) < 5 -> do WSI
+
+        if median_size < 0.0005:
+            processing_dict[img] += "_small_cell"
+            pass
+
+        if median_size > 0.0015:
+            # adjust WSI parameters
+            args.tile_size = 512
+            args.overlap = 150
+            args.iou_depth = 150
+
+            processing_dict[img] += "_medium_cell"
+
+        if median_size > 0.005 or not use_wsi:
+            # large cells
+            processing_dict[img] += "_large_cell"
+            pass
+        else:
+            processing_dict[img] += "_doing_wsi"
+            # cells are medium or small -> do WSI
+            inp = da.from_array(wsi, chunks=args.tile_size)
+            labels = segment_wsi(inp, args.overlap, args.iou_depth, args.iou_threshold, normalize=False, model=model,
+                                 device=device, bbox_threshold=args.bbox_threshold).compute()
+
         labels = relabel_mask(relabel_sequential(labels)[0])
 
         ### reshaping based on gt label
@@ -333,16 +374,15 @@ if __name__ == "__main__":
 
         plt.close()
 
-    wsi_imgs_dict = {'flagged': wsi_imgs_flagged, 'regular': wsi_imgs_reg, 'no_wsi': no_wsi_imgs}
+    # wsi_imgs_dict = {'flagged': wsi_imgs_flagged, 'regular': wsi_imgs_reg, 'no_wsi': no_wsi_imgs}
     # Save dictionary as a JSON file
-    json_path = os.path.join(args.results_path, 'wsi_imgs_dict.json')
-    with open(json_path, 'w') as json_file:
-        json.dump(wsi_imgs_dict, json_file, indent=4)
+    # json_path = os.path.join(args.results_path, 'wsi_imgs_dict.json')
+    # with open(json_path, 'w') as json_file:
+    #     json.dump(wsi_imgs_dict, json_file, indent=4)
 
-
-    print() 
-    print('wsi_imgs_dict saved')
-    print('wsi img dict', wsi_imgs_dict)
-    print()
+    # do processing_dict to text file
+    with open(os.path.join(args.results_path, 'processing_dict.txt'), 'w') as f:
+        for key, value in processing_dict.items():
+            f.write(f"{key}:{value}\n")
 
     print("Done.")
