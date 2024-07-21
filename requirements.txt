@@ -6,3 +6,5 @@ scikit-image
 torch
 numpy
 tqdm
+imagecodecs
+xgboost
