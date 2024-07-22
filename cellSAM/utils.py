@@ -211,6 +211,6 @@ def relabel_mask(mask):
     new_mask = _remap_array(mask, remap, original_idxs)
     try:
         assert f1_score(mask, new_mask) == 1.
-    except AssertionError:
+    except:
         print("f1 score is not 1")
     return new_mask
