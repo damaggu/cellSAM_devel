@@ -20,7 +20,7 @@ from tqdm import tqdm
 from scipy.signal import find_peaks
 from skimage.segmentation import relabel_sequential
 
-from cellSAM.utils import relabel_mask
+from cellSAM.utils import relabel_mask, f1_score
 from cellSAM.wsi import segment_chunk, segment_wsi
 from cellSAM.model import get_local_model, get_model, segment_cellular_image
 
@@ -131,9 +131,15 @@ if __name__ == "__main__":
     all_images = sorted([img for img in all_images if img.endswith('.X.npy')])
 
     if bool(args.debug):
-        all_images = all_images[:28]
+        # all_images = all_images[:28]
         # all_images = ['cell_00041.b0.X.npy']
-        # all_images = ['cell_00028.b0.X.npy']
+        # all_images = ['cell_00012.b0.X.npy'] # blood
+        all_images = ['cell_00088.b0.X.npy']  # livecell but low contrast not working as expected
+        # all_images = ['cell_00086.b0.X.npy']
+        # all_images = ['cell_00045.b0.X.npy'] # TN
+        # all_images = ['cell_00081.b0.X.npy'] # low contrast livecell
+        # all_images = ['cell_00100.b0.X.npy'] # low contrast bacteria
+        # all_images = ['cell_00086.b0.X.npy']
 
         # all_images = ['cell_00044.b0.X.npy']
         # all_images = ['cell_00023.b0.X.npy']
@@ -144,7 +150,7 @@ if __name__ == "__main__":
         # all_images = ['TestHidden_020.b0.X.npy']
         # all_images = ['TestHidden_397.b0.X.npy'] # large
         # all_images = ['TestHidden_399.b0.X.npy'] # tiny
-        all_images = ['TestHidden_073.b0.X.npy'] # tiny -> low contrast
+        # all_images = ['TestHidden_073.b0.X.npy'] # tiny -> low contrast
         # all_images = ['TestHidden_398.b0.X.npy'] # medium
         # all_images = ['TestHidden_179.b0.X.npy']  #
         # all_images = ['TestHidden_393.b0.X.npy'] # small
@@ -265,24 +271,50 @@ if __name__ == "__main__":
         processing_dict[img] += "_use_wsi" if use_wsi else ""
 
 
-        def is_low_contrast_clahe(image, threshold=0.0175):
+        def is_low_contrast_clahe(image, lower_threshold=0.04, upper_threshold=0.05, lower_mean=0.15, upper_mean=0.25):
+            # to greyscale
+            # image = image.mean(axis=2)
+            # min-max scaling
             cp = equalize_adapthist(image, kernel_size=256)
             diff = np.abs(image - cp)
+            # diff>0
+            diff = diff[diff > 0]
             mean_diff = np.mean(diff)
-            return mean_diff < threshold
+            print(f"Mean diff: {mean_diff}")
+            print(np.mean(cp))
+            return lower_threshold < mean_diff < upper_threshold and lower_mean < np.mean(cp) < upper_mean
 
 
-        # 0.015 for low contrast images
+        # new values
+        # blood cell 12 -  0.121261
+        # bacteria 0.05141763016581535
+        # 1 - low contrast 0.03363665193319321
+        # 2- low contrast 0.0307489
+        # blood 0.07721655
+        # TN 0.025151383
+
+        ### check for 81 contrast values against TN
+        # 81 low contrast 0.021225083
+
+        # tissuenet 0.0162
+
+        # 0.015 for low contrast images wihtout mean; with mean 0.37, std 0.095
         # 0.08 for blod cell
         # 0.04 for yeast
         # 0.02 for TN
 
-        low_contrast = is_low_contrast_clahe(wsi)
+        # TODO:preprocessing for some livecell images the nuclear channels is somehow not 0
+        # if np.mean(abs(wsi[..., 1] - wsi[..., 2])) < 0.01:
+        #     wsi[..., 1] = wsi[..., 0]
+        #     processing_dict[img] += "_first_channel_removed"
+
+        low_contrast = is_low_contrast_clahe(wsi) and wsi[..., 1].max() == 0
         processing_dict[img] += "_low_contrast" if low_contrast else ""
 
         if low_contrast:
+            # wsi = equalize_adapthist(wsi, kernel_size=256, clip_limit=0.005)
             wsi = equalize_adapthist(wsi, kernel_size=256)
-            wsi = adjust_gamma(wsi, gamma=3)
+            wsi = adjust_gamma(wsi, gamma=2)
 
         labels = segment_cellular_image(wsi, model=model, normalize=False, device=device)[0]
         sizes = []
@@ -304,19 +336,18 @@ if __name__ == "__main__":
         # small -> 0.0007795, num 156;;; median 0.00111
         # if len(sizes) < 5 -> do WSI
 
-        if median_size < 0.0005:
+        if median_size < 0.0015:
             processing_dict[img] += "_small_cell"
             pass
 
-        if median_size > 0.0015:
+        if median_size >= 0.0015 and len(sizes) > 5:
             # adjust WSI parameters
             args.tile_size = 512
-            args.overlap = 150
-            args.iou_depth = 150
-
+            args.overlap = 100
+            args.iou_depth = 100
             processing_dict[img] += "_medium_cell"
 
-        if median_size > 0.005 or not use_wsi:
+        if (median_size > 0.005 or not use_wsi) and len(sizes) > 5:
             # large cells
             processing_dict[img] += "_large_cell"
             pass
@@ -360,17 +391,25 @@ if __name__ == "__main__":
             plt.savefig(os.path.join(results_inspections, img.split('.')[0] + '.png'))
         print(f"Processed {img}")
 
-        verbose = False
+        verbose = True
         if verbose:
+            plt.imshow(labels)
+            plt.title(img.split('.')[0])
+            plt.show()
+
+            gt_label_path = "./evals/tuning/labels/" + img.split('.')[0] + '_label.tiff'
+            gt_mask = iio.imread(gt_label_path)
+            # compute f1 between gt and predicted
+            f1 = f1_score(gt_mask.ravel(), labels.ravel())
+            print(f"F1 score: {f1}")
+
+            plt.imshow(gt_mask)
+            plt.show()
+
             plt.show()
             plt.imshow(wsi)
             plt.title(img.split('.')[0])
             plt.show()
-
-            if plt_gt:
-                plt.imshow(gt_mask)
-                plt.title(img.split('.')[0])
-                plt.show()
 
         plt.close()
 
