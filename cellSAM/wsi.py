@@ -128,15 +128,9 @@ def segment_wsi(image, overlap, iou_depth, iou_threshold, **segmentation_kwargs)
             iou_threshold=iou_threshold,
         )
 
-        block_labeled = da.overlap.trim_internal(
-            block_labeled, iou_depth, boundary=boundary
-        )
-
-    else:
-        block_labeled = da.overlap.trim_internal(
-            block_labeled, depth, boundary=boundary
-        )
-
+    block_labeled = da.overlap.trim_internal(
+        block_labeled, iou_depth, boundary=boundary
+    )
     return block_labeled
 
 
