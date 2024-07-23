@@ -120,6 +120,12 @@ if __name__ == "__main__":
     parser.add_argument("--preproc", type=int, default=0)
     parser.add_argument("--use_gt", type=int, default=0)
 
+    parser.add_argument("--lower_contrast_threshold", type=float, default=0.04)
+    parser.add_argument("--upper_contrast_threshold", type=float, default=0.05)
+
+    parser.add_argument("--medium_cell_threshold", type=float, default=0.0015)
+    parser.add_argument("--medium_cell_max", type=int, default=60)
+
     # TODO: adaptive tiling, adaptive overlap, adaptive CLAHE
 
     args = parser.parse_args()
@@ -134,7 +140,7 @@ if __name__ == "__main__":
         # all_images = all_images[:28]
         # all_images = ['cell_00041.b0.X.npy']
         # all_images = ['cell_00012.b0.X.npy'] # blood
-        all_images = ['cell_00088.b0.X.npy']  # livecell but low contrast not working as expected
+        all_images = ['cell_00095.b0.X.npy']  # livecell but low contrast not working as expected
         # all_images = ['cell_00086.b0.X.npy']
         # all_images = ['cell_00045.b0.X.npy'] # TN
         # all_images = ['cell_00081.b0.X.npy'] # low contrast livecell
@@ -308,7 +314,8 @@ if __name__ == "__main__":
         #     wsi[..., 1] = wsi[..., 0]
         #     processing_dict[img] += "_first_channel_removed"
 
-        low_contrast = is_low_contrast_clahe(wsi) and wsi[..., 1].max() == 0
+        low_contrast = is_low_contrast_clahe(wsi, lower_threshold=args.lower_contrast_threshold,
+                                             upper_threshold=args.upper_contrast_threshold) and wsi[..., 1].max() == 0
         processing_dict[img] += "_low_contrast" if low_contrast else ""
 
         if low_contrast:
@@ -328,6 +335,13 @@ if __name__ == "__main__":
         # median size
         median_size = np.median(sizes)
 
+        print(f"Median size: {median_size:.4f}")
+
+        # img 27 -> 0.0026; should be bigger
+        # where to have 0.0025 + sizes 56;
+        # 0.0025 + sizes 41
+        # 0.002 + 149
+
         processing_dict[img] += f"_median_{median_size:.4f}"
         processing_dict[img] += f"_num_{len(sizes)}"
 
@@ -336,11 +350,11 @@ if __name__ == "__main__":
         # small -> 0.0007795, num 156;;; median 0.00111
         # if len(sizes) < 5 -> do WSI
 
-        if median_size < 0.0015:
+        if median_size < args.medium_cell_threshold:
             processing_dict[img] += "_small_cell"
             pass
 
-        if median_size >= 0.0015 and len(sizes) > 5:
+        if median_size >= args.medium_cell_threshold and len(sizes) > 5 and len(sizes) < args.medium_cell_max:
             # adjust WSI parameters
             args.tile_size = 512
             args.overlap = 100
