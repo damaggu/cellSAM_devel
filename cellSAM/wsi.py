@@ -36,7 +36,6 @@ def segment_chunk(chunk, model=None, **kwargs):
     except Exception as e:
         logging.error(f"Error segmenting chunk: {e}")
         mask = np.zeros(chunk.shape[:-1], dtype=np.int64)
-    print('segmented a chunk')
     return mask.astype(np.int32), mask.max()
 
 
@@ -70,7 +69,6 @@ def segment_wsi(image, overlap, iou_depth, iou_threshold, **segmentation_kwargs)
     for index, input_block in block_iter:
         block_time = time.time()
         cnt += 1
-        print(f"Processing block {cnt} of {total_blocks}")
 
         labeled_block, n = segment_chunk(
             input_block,
@@ -105,7 +103,6 @@ def segment_wsi(image, overlap, iou_depth, iou_threshold, **segmentation_kwargs)
 
         bt = time.time() - block_time
         cumulative_time += bt
-        print(f'block processed in {bt:.4f} and total time is {format_time(cumulative_time)}')
 
     block_labeled = da.block(labeled_blocks.tolist())
 

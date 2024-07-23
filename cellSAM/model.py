@@ -102,6 +102,7 @@ def segment_cellular_image(
             model = get_local_model(model)
         else:
             if 'cuda' in device:
+                print("Warning, using standard model. For better performance, use a model trained on your data.")
                 model = get_model(model)
                 model = model.to(device)
                 model.eval()
