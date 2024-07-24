@@ -124,6 +124,7 @@ if __name__ == "__main__":
     parser.add_argument("--upper_contrast_threshold", type=float, default=0.05)
 
     parser.add_argument("--medium_cell_threshold", type=float, default=0.0015)
+    parser.add_argument("--large_cell_threshold", type=float, default=0.01)
     parser.add_argument("--medium_cell_max", type=int, default=60)
 
     # TODO: adaptive tiling, adaptive overlap, adaptive CLAHE
@@ -140,26 +141,32 @@ if __name__ == "__main__":
         # all_images = all_images[:28]
         # all_images = ['cell_00041.b0.X.npy']
         # all_images = ['cell_00012.b0.X.npy'] # blood
-        all_images = ['cell_00095.b0.X.npy']  # livecell but low contrast not working as expected
+        # all_images = ['cell_00095.b0.X.npy']  # livecell but low contrast not working as expected
         # all_images = ['cell_00086.b0.X.npy']
         # all_images = ['cell_00045.b0.X.npy'] # TN
-        # all_images = ['cell_00081.b0.X.npy'] # low contrast livecell
+        # all_images = ['cell_00081.b0.X.npy']  # low contrast livecell
         # all_images = ['cell_00100.b0.X.npy'] # low contrast bacteria
         # all_images = ['cell_00086.b0.X.npy']
+        # all_images = ['cell_00037.b0.X.npy']
+        all_images = ['cell_00038.b0.X.npy']
 
         # all_images = ['cell_00044.b0.X.npy']
         # all_images = ['cell_00023.b0.X.npy']
         # all_images = ['cell_00027.b0.X.npy']
         # all_images = ['cell_00028.b0.X.npy']
         # 'TestHidden_043'
-        # all_images = ['TestHidden_056.b0.X.npy']
+        # all_images = ['TestHidden_347.b0.X.npy']  # TODO:
+        # all_images = ['TestHidden_205.b0.X.npy']  # TODO: needs medium -> median size 0.0049
+        # all_images = ['TestHidden_179.b0.X.npy'] #TODO: double check
+        # all_images = ['TestHidden_278.b0.X.npy'] #TODO: wrong medium
+        # all_images = ['TestHidden_110.b0.X.npy'] #TODO: redo w. higher contrast
         # all_images = ['TestHidden_020.b0.X.npy']
         # all_images = ['TestHidden_397.b0.X.npy'] # large
         # all_images = ['TestHidden_399.b0.X.npy'] # tiny
         # all_images = ['TestHidden_073.b0.X.npy'] # tiny -> low contrast
         # all_images = ['TestHidden_398.b0.X.npy'] # medium
         # all_images = ['TestHidden_179.b0.X.npy']  #
-        # all_images = ['TestHidden_393.b0.X.npy'] # small
+        # all_images = ['TestHidden_393.b0.X.npy'] # small -> low contrast
         # all_images = ['TestHidden_005.b0.X.npy'] # large
         # all_images = ['TestHidden_047.b0.X.npy'] # medium
         # all_images = ['TestHidden_048.b0.X.npy'] # medium
@@ -192,6 +199,7 @@ if __name__ == "__main__":
         modelpath = args.model_path
         model = get_local_model(modelpath)
         model.bbox_threshold = args.bbox_threshold
+        # model.iou_threshold = 0.9
         if torch.cuda.is_available():
             model = model.to(device)
     else:
@@ -272,9 +280,10 @@ if __name__ == "__main__":
                 use_wsi = True
         else:
             # New Classiefer Stuff
-            use_wsi = featurizer(clf, wsi)[0] == 0
+            bloodcell = featurizer(clf, wsi)[0] == 1
 
-        processing_dict[img] += "_use_wsi" if use_wsi else ""
+        processing_dict[img] += "_bloodcell" if bloodcell else ""
+        use_wsi = not bloodcell
 
 
         def is_low_contrast_clahe(image, lower_threshold=0.04, upper_threshold=0.05, lower_mean=0.15, upper_mean=0.25):
@@ -288,7 +297,7 @@ if __name__ == "__main__":
             mean_diff = np.mean(diff)
             print(f"Mean diff: {mean_diff}")
             print(np.mean(cp))
-            return lower_threshold < mean_diff < upper_threshold and lower_mean < np.mean(cp) < upper_mean
+            return lower_threshold < mean_diff < upper_threshold
 
 
         # new values
@@ -309,10 +318,13 @@ if __name__ == "__main__":
         # 0.04 for yeast
         # 0.02 for TN
 
+        # TODO: add to ablation
         # TODO:preprocessing for some livecell images the nuclear channels is somehow not 0
         # if np.mean(abs(wsi[..., 1] - wsi[..., 2])) < 0.01:
         #     wsi[..., 1] = wsi[..., 0]
         #     processing_dict[img] += "_first_channel_removed"
+
+        # wsi[..., 1] = wsi[..., 0]
 
         low_contrast = is_low_contrast_clahe(wsi, lower_threshold=args.lower_contrast_threshold,
                                              upper_threshold=args.upper_contrast_threshold) and wsi[..., 1].max() == 0
@@ -320,52 +332,68 @@ if __name__ == "__main__":
 
         if low_contrast:
             # wsi = equalize_adapthist(wsi, kernel_size=256, clip_limit=0.005)
-            wsi = equalize_adapthist(wsi, kernel_size=256)
+            wsi = equalize_adapthist(wsi, kernel_size=256, clip_limit=0.01)
+            # wsi = equalize_adapthist(wsi, kernel_size=256, clip_limit=0.03)
             wsi = adjust_gamma(wsi, gamma=2)
 
-        labels = segment_cellular_image(wsi, model=model, normalize=False, device=device)[0]
-        sizes = []
-        for mask in np.unique(labels):
-            if mask == 0:
-                continue
-            area = (labels == mask).sum().item()
-            # normalizing by area
-            sizes.append(area / (labels.shape[0] * labels.shape[1]))
-        sizes = np.array(sizes)
-        # median size
-        median_size = np.median(sizes)
 
-        print(f"Median size: {median_size:.4f}")
+        # TODO: integrate this with the above
+        # wsi = adjust_gamma(wsi, gamma=0.55)
+
+        def get_median_size(labels):
+            sizes = []
+            for mask in np.unique(labels):
+                if mask == 0:
+                    continue
+                area = (labels == mask).sum().item()
+                # normalizing by area
+                sizes.append(area / (labels.shape[0] * labels.shape[1]))
+            sizes = np.array(sizes)
+            # median size
+            median_size = np.median(sizes)
+            return median_size, sizes
+
+
+        labels = segment_cellular_image(wsi, model=model, normalize=False, device=device)[0]
+
+        inp = da.from_array(wsi, chunks=512)
+        labels = segment_wsi(inp, 200, 200, args.iou_threshold, normalize=False, model=model,
+                             device=device, bbox_threshold=args.bbox_threshold).compute()
+
+        median_size, sizes = get_median_size(labels)
+
+        # print(f"Median size: {median_size:.4f}")
 
         # img 27 -> 0.0026; should be bigger
         # where to have 0.0025 + sizes 56;
         # 0.0025 + sizes 41
         # 0.002 + 149
 
-        processing_dict[img] += f"_median_{median_size:.4f}"
-        processing_dict[img] += f"_num_{len(sizes)}"
+        # processing_dict[img] += f"_median_{median_size:.4f}"
+        # processing_dict[img] += f"_num_{len(sizes)}"
+
+        plt.imshow(wsi)
+        plt.show()
 
         # middle sized cells -> median = 0.0017 -> 512x512 x 150-200; num 218
         # large, median size 0.007, num - 47;; median 0.008, num 52
         # small -> 0.0007795, num 156;;; median 0.00111
         # if len(sizes) < 5 -> do WSI
+        #
 
-        if median_size < args.medium_cell_threshold:
-            processing_dict[img] += "_small_cell"
-            pass
-
-        if median_size >= args.medium_cell_threshold and len(sizes) > 5 and len(sizes) < args.medium_cell_max:
+        if args.medium_cell_threshold <= median_size < args.large_cell_threshold and len(sizes) > 5:
             # adjust WSI parameters
-            args.tile_size = 512
-            args.overlap = 100
-            args.iou_depth = 100
+            # args.tile_size = 512
+            # args.overlap = 200
+            # args.iou_depth = 200
             processing_dict[img] += "_medium_cell"
-
-        if (median_size > 0.005 or not use_wsi) and len(sizes) > 5:
+        elif (median_size >= args.large_cell_threshold or bloodcell) and len(sizes) > 5:
             # large cells
             processing_dict[img] += "_large_cell"
-            pass
+            labels = segment_cellular_image(wsi, model=model, normalize=False, device=device)[0]
         else:
+            doing_wsi = True
+            processing_dict[img] += "_small_cell"
             processing_dict[img] += "_doing_wsi"
             # cells are medium or small -> do WSI
             inp = da.from_array(wsi, chunks=args.tile_size)
@@ -373,6 +401,8 @@ if __name__ == "__main__":
                                  device=device, bbox_threshold=args.bbox_threshold).compute()
 
         labels = relabel_mask(relabel_sequential(labels)[0])
+
+        print(labels.max())
 
         ### reshaping based on gt label
         if plt_gt:
