@@ -123,9 +123,10 @@ if __name__ == "__main__":
     parser.add_argument("--lower_contrast_threshold", type=float, default=0.04)
     parser.add_argument("--upper_contrast_threshold", type=float, default=0.05)
 
-    parser.add_argument("--medium_cell_threshold", type=float, default=0.0015)
-    parser.add_argument("--large_cell_threshold", type=float, default=0.01)
+    parser.add_argument("--medium_cell_threshold", type=float, default=0.0028)
+    parser.add_argument("--large_cell_threshold", type=float, default=0.003)
     parser.add_argument("--medium_cell_max", type=int, default=60)
+    parser.add_argument("--medium_mean_diff_threshold", type=float, default=0.1)
 
     # TODO: adaptive tiling, adaptive overlap, adaptive CLAHE
 
@@ -297,7 +298,8 @@ if __name__ == "__main__":
             mean_diff = np.mean(diff)
             print(f"Mean diff: {mean_diff}")
             print(np.mean(cp))
-            return lower_threshold < mean_diff < upper_threshold
+            islowcontrast = lower_threshold < mean_diff < upper_threshold
+            return [islowcontrast, mean_diff]
 
 
         # new values
@@ -326,8 +328,9 @@ if __name__ == "__main__":
 
         # wsi[..., 1] = wsi[..., 0]
 
-        low_contrast = is_low_contrast_clahe(wsi, lower_threshold=args.lower_contrast_threshold,
-                                             upper_threshold=args.upper_contrast_threshold) and wsi[..., 1].max() == 0
+        low_contrast, mean_diff = is_low_contrast_clahe(wsi, lower_threshold=args.lower_contrast_threshold,
+                                             upper_threshold=args.upper_contrast_threshold)
+        low_contrast = low_contrast and wsi[..., 1].max() == 0
         processing_dict[img] += "_low_contrast" if low_contrast else ""
 
         if low_contrast:
@@ -362,18 +365,18 @@ if __name__ == "__main__":
 
         median_size, sizes = get_median_size(labels)
 
-        # print(f"Median size: {median_size:.4f}")
+        print(f"Median size: {median_size:.4f}")
 
         # img 27 -> 0.0026; should be bigger
         # where to have 0.0025 + sizes 56;
         # 0.0025 + sizes 41
         # 0.002 + 149
 
-        # processing_dict[img] += f"_median_{median_size:.4f}"
-        # processing_dict[img] += f"_num_{len(sizes)}"
+        processing_dict[img] += f"_median_{median_size:.4f}"
+        processing_dict[img] += f"_num_{len(sizes)}"
 
-        plt.imshow(wsi)
-        plt.show()
+        # plt.imshow(wsi)
+        # plt.show()
 
         # middle sized cells -> median = 0.0017 -> 512x512 x 150-200; num 218
         # large, median size 0.007, num - 47;; median 0.008, num 52
@@ -381,7 +384,7 @@ if __name__ == "__main__":
         # if len(sizes) < 5 -> do WSI
         #
 
-        if args.medium_cell_threshold <= median_size < args.large_cell_threshold and len(sizes) > 5:
+        if args.medium_cell_threshold <= median_size < args.large_cell_threshold and len(sizes) > 5 and mean_diff > args.medium_mean_diff_threshold:
             # adjust WSI parameters
             # args.tile_size = 512
             # args.overlap = 200
@@ -435,7 +438,7 @@ if __name__ == "__main__":
             plt.savefig(os.path.join(results_inspections, img.split('.')[0] + '.png'))
         print(f"Processed {img}")
 
-        verbose = False
+        verbose = True
         if verbose:
             plt.imshow(labels)
             plt.title(img.split('.')[0])
