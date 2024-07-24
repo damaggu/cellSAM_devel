@@ -334,8 +334,11 @@ if __name__ == "__main__":
         processing_dict[img] += "_low_contrast" if low_contrast else ""
 
         if low_contrast:
+            clip_limit = 0.01
+            if 0.04 < mean_diff < 0.05:
+                clip_limit = 0.03
             # wsi = equalize_adapthist(wsi, kernel_size=256, clip_limit=0.005)
-            wsi = equalize_adapthist(wsi, kernel_size=256, clip_limit=0.01)
+            wsi = equalize_adapthist(wsi, kernel_size=256, clip_limit=clip_limit)
             # wsi = equalize_adapthist(wsi, kernel_size=256, clip_limit=0.03)
             wsi = adjust_gamma(wsi, gamma=2)
 
