@@ -107,7 +107,8 @@ if __name__ == "__main__":
     parser.add_argument("--num_chunks", type=int, default=8)
     parser.add_argument("--chunk", type=int, default=0)
     parser.add_argument("--tile_size", type=int, default=256)
-    parser.add_argument("--model_path", type=str, default=None)
+    # parser.add_argument("--model_path", type=str, default="SAM_groundtruth_boxPrompt_everything_with_good_livecell_neurips_tuning_train.pth")
+    parser.add_argument("--model_path", type=str, default="./magikmodel.pth")
     parser.add_argument("--bbox_threshold", type=float, default=0.4)
     parser.add_argument("--debug", type=int, default=0)
     parser.add_argument("--gpu", type=int, default=0)
@@ -115,7 +116,7 @@ if __name__ == "__main__":
     parser.add_argument("--overlap", type=int, default=100)
     parser.add_argument("--iou_depth", type=int, default=100)
     parser.add_argument("--iou_threshold", type=float, default=0.5)
-    parser.add_argument("--data_path", type=str, default='./neurips/')
+    parser.add_argument("--data_path", type=str, default='./neurips_hidden/neurips/')
     parser.add_argument("--plt_gt", type=int, default=0)
     parser.add_argument("--preproc", type=int, default=0)
     parser.add_argument("--use_gt", type=int, default=0)
@@ -149,7 +150,7 @@ if __name__ == "__main__":
         # all_images = ['cell_00100.b0.X.npy'] # low contrast bacteria
         # all_images = ['cell_00086.b0.X.npy']
         # all_images = ['cell_00037.b0.X.npy']
-        all_images = ['cell_00038.b0.X.npy']
+        # all_images = ['cell_00038.b0.X.npy']
 
         # all_images = ['cell_00044.b0.X.npy']
         # all_images = ['cell_00023.b0.X.npy']
@@ -173,7 +174,7 @@ if __name__ == "__main__":
         # all_images = ['TestHidden_048.b0.X.npy'] # medium
         # all_images = ['TestHidden_060.b0.X.npy'] # medium
         # all_images = ['TestHidden_114.b0.X.npy']  # small
-        # all_images = ['TestHidden_043.b0.X.npy']
+        all_images = ['TestHidden_085.b0.X.npy']
         # all_images = ['cell_00032.b0.X.npy']
     else:
         import matplotlib
@@ -341,6 +342,7 @@ if __name__ == "__main__":
                 clip_limit = 0.02
                 kernel_size = 384
                 gamma = 1.5
+                model.bbox_threshold = 0.3
             # wsi = equalize_adapthist(wsi, kernel_size=256, clip_limit=0.005)
             wsi = equalize_adapthist(wsi, kernel_size=kernel_size, clip_limit=clip_limit)
             # wsi = equalize_adapthist(wsi, kernel_size=256, clip_limit=0.03)
@@ -412,6 +414,7 @@ if __name__ == "__main__":
                                  device=device, bbox_threshold=args.bbox_threshold).compute()
 
         labels = relabel_mask(relabel_sequential(labels)[0])
+        model.bbox_threshold = args.bbox_threshold
 
         print(labels.max())
 
@@ -446,7 +449,7 @@ if __name__ == "__main__":
             plt.savefig(os.path.join(results_inspections, img.split('.')[0] + '.png'))
         print(f"Processed {img}")
 
-        verbose = False
+        verbose = True
         if verbose:
             plt.imshow(labels)
             plt.title(img.split('.')[0] + "_{}".format(labels.max()))
