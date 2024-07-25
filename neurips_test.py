@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 
 from glob import glob
 
-from skimage.exposure import adjust_gamma, equalize_adapthist
+from skimage.exposure import adjust_gamma, equalize_adapthist, adjust_log
 from tqdm import tqdm
 from scipy.signal import find_peaks
 from skimage.segmentation import relabel_sequential
@@ -335,12 +335,17 @@ if __name__ == "__main__":
 
         if low_contrast:
             clip_limit = 0.01
+            kernel_size = 256
+            gamma = 2
             if 0.04 < mean_diff < 0.05:
-                clip_limit = 0.03
+                clip_limit = 0.02
+                kernel_size = 384
+                gamma = 1.5
             # wsi = equalize_adapthist(wsi, kernel_size=256, clip_limit=0.005)
-            wsi = equalize_adapthist(wsi, kernel_size=256, clip_limit=clip_limit)
+            wsi = equalize_adapthist(wsi, kernel_size=kernel_size, clip_limit=clip_limit)
             # wsi = equalize_adapthist(wsi, kernel_size=256, clip_limit=0.03)
-            wsi = adjust_gamma(wsi, gamma=2)
+            wsi = adjust_gamma(wsi, gamma=gamma)
+            # wsi = adjust_log(wsi, gain=1.2)
 
 
         # TODO: integrate this with the above
@@ -444,7 +449,7 @@ if __name__ == "__main__":
         verbose = False
         if verbose:
             plt.imshow(labels)
-            plt.title(img.split('.')[0])
+            plt.title(img.split('.')[0] + "_{}".format(labels.max()))
             plt.show()
 
             gt_label_path = "./evals/tuning/labels/" + img.split('.')[0] + '_label.tiff'
