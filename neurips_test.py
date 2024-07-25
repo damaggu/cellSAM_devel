@@ -448,7 +448,7 @@ if __name__ == "__main__":
             plt.savefig(os.path.join(results_inspections, img.split('.')[0] + '.png'))
         print(f"Processed {img}")
 
-        verbose = True
+        verbose = False
         if verbose:
             plt.imshow(labels)
             plt.title(img.split('.')[0] + "_{}".format(labels.max()))
