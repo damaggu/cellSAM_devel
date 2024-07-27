@@ -121,9 +121,9 @@ if __name__ == "__main__":
     parser.add_argument("--use_gt", type=int, default=0)
 
     parser.add_argument("--lower_contrast_threshold", type=float, default=0.04)
-    parser.add_argument("--upper_contrast_threshold", type=float, default=0.05)
+    parser.add_argument("--upper_contrast_threshold", type=float, default=0.1)
 
-    parser.add_argument("--medium_cell_threshold", type=float, default=0.0028)
+    parser.add_argument("--medium_cell_threshold", type=float, default=0.002)
     parser.add_argument("--large_cell_threshold", type=float, default=0.003)
     parser.add_argument("--medium_cell_max", type=int, default=60)
     parser.add_argument("--medium_mean_diff_threshold", type=float, default=0.1)
@@ -330,7 +330,7 @@ if __name__ == "__main__":
 
         low_contrast, mean_diff = is_low_contrast_clahe(wsi, lower_threshold=args.lower_contrast_threshold,
                                              upper_threshold=args.upper_contrast_threshold)
-        low_contrast = low_contrast and wsi[..., 1].max() == 0
+        low_contrast = (low_contrast and wsi[..., 1].max() == 0) if mean_diff < 0.05 else low_contrast
         processing_dict[img] += "_low_contrast" if low_contrast else ""
 
         if low_contrast:
