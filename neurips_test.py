@@ -107,7 +107,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_chunks", type=int, default=8)
     parser.add_argument("--chunk", type=int, default=0)
     parser.add_argument("--tile_size", type=int, default=256)
-    parser.add_argument("--model_path", type=str, default=None)
+    parser.add_argument("--model_path", type=str, default="/home/markus/PycharmProjects/cellSAM_devel/models_july2024/new_model/neurips_newmodel_400epoch.pth")
     parser.add_argument("--bbox_threshold", type=float, default=0.4)
     parser.add_argument("--debug", type=int, default=0)
     parser.add_argument("--gpu", type=int, default=0)
@@ -115,7 +115,7 @@ if __name__ == "__main__":
     parser.add_argument("--overlap", type=int, default=100)
     parser.add_argument("--iou_depth", type=int, default=100)
     parser.add_argument("--iou_threshold", type=float, default=0.5)
-    parser.add_argument("--data_path", type=str, default='./neurips/')
+    parser.add_argument("--data_path", type=str, default='./neurips_hidden/neurips/')
     parser.add_argument("--plt_gt", type=int, default=0)
     parser.add_argument("--preproc", type=int, default=0)
     parser.add_argument("--use_gt", type=int, default=0)
@@ -173,8 +173,21 @@ if __name__ == "__main__":
         # all_images = ['TestHidden_048.b0.X.npy'] # medium
         # all_images = ['TestHidden_060.b0.X.npy'] # medium
         # all_images = ['TestHidden_114.b0.X.npy']  # small
-        all_images = ['TestHidden_085.b0.X.npy']
+
+        # to check 027, 005, 179 --> too many?
+
+        # new tests
+        # all_images = ['TestHidden_027.b0.X.npy']
+        # all_images = ['TestHidden_005.b0.X.npy']
+        # all_images = ['TestHidden_179.b0.X.npy']
+        # all_images = ['TestHidden_189.b0.X.npy']
+        # all_images = ['TestHidden_002.b0.X.npy']
+        # all_images = ['TestHidden_006.b0.X.npy']
+
+
+        # all_images = ['TestHidden_085.b0.X.npy']
         # all_images = ['cell_00032.b0.X.npy']
+        pass
     else:
         import matplotlib
 
@@ -331,6 +344,7 @@ if __name__ == "__main__":
         low_contrast, mean_diff = is_low_contrast_clahe(wsi, lower_threshold=args.lower_contrast_threshold,
                                              upper_threshold=args.upper_contrast_threshold)
         low_contrast = (low_contrast and wsi[..., 1].max() == 0) if mean_diff < 0.05 else low_contrast
+        low_contrast = low_contrast and not bloodcell
         processing_dict[img] += "_low_contrast" if low_contrast else ""
 
         if low_contrast:
@@ -393,7 +407,8 @@ if __name__ == "__main__":
         # if len(sizes) < 5 -> do WSI
         #
 
-        if args.medium_cell_threshold <= median_size < args.large_cell_threshold and len(sizes) > 5 and mean_diff > args.medium_mean_diff_threshold:
+        # if args.medium_cell_threshold <= median_size < args.large_cell_threshold and len(sizes) > 5 and mean_diff > args.medium_mean_diff_threshold:
+        if args.medium_cell_threshold <= median_size < args.large_cell_threshold and len(sizes) > 5:
             # adjust WSI parameters
             # args.tile_size = 512
             # args.overlap = 200
