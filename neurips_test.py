@@ -123,7 +123,7 @@ if __name__ == "__main__":
     parser.add_argument("--lower_contrast_threshold", type=float, default=0.04)
     parser.add_argument("--upper_contrast_threshold", type=float, default=0.1)
 
-    parser.add_argument("--medium_cell_threshold", type=float, default=0.002)
+    parser.add_argument("--medium_cell_threshold", type=float, default=0.0013)
     parser.add_argument("--large_cell_threshold", type=float, default=0.003)
     parser.add_argument("--medium_cell_max", type=int, default=60)
     parser.add_argument("--medium_mean_diff_threshold", type=float, default=0.1)
@@ -183,6 +183,26 @@ if __name__ == "__main__":
         # all_images = ['TestHidden_189.b0.X.npy']
         # all_images = ['TestHidden_002.b0.X.npy']
         # all_images = ['TestHidden_006.b0.X.npy']
+
+
+        # all_images = ['TestHidden_001.b0.X.npy']
+        # all_images = ['TestHidden_009.b0.X.npy']
+        all_images = ['TestHidden_011.b0.X.npy']
+        # all_images = ['TestHidden_029.b0.X.npy']
+        # all_images = ['TestHidden_054.b0.X.npy']
+        # all_images = ['TestHidden_056.b0.X.npy']
+        # all_images = ['TestHidden_334.b0.X.npy']
+        # all_images = ['TestHidden_318.b0.X.npy']
+
+
+        ### v7 was better
+        # all_images = ['TestHidden_021.b0.X.npy']
+        # all_images = ['TestHidden_031.b0.X.npy']
+        # all_images = ['TestHidden_035.b0.X.npy']
+
+
+        ### probmel
+        # all_images = ['TestHidden_347.b0.X.npy']
 
 
         # all_images = ['TestHidden_085.b0.X.npy']
@@ -345,17 +365,19 @@ if __name__ == "__main__":
                                              upper_threshold=args.upper_contrast_threshold)
         low_contrast = (low_contrast and wsi[..., 1].max() == 0) if mean_diff < 0.05 else low_contrast
         low_contrast = low_contrast and not bloodcell
+        bloodcell2 = 0.5 < wsi[..., 1].mean() < 0.7
+        low_contrast = low_contrast and not bloodcell2
         processing_dict[img] += "_low_contrast" if low_contrast else ""
 
         if low_contrast:
             clip_limit = 0.01
             kernel_size = 256
             gamma = 2
-            if 0.04 < mean_diff < 0.05:
-                clip_limit = 0.02
+            if 0.04 < mean_diff < 0.06:
+                clip_limit = 0.05 # try higher
                 kernel_size = 384
-                gamma = 1.5
-                model.bbox_threshold = 0.3
+                gamma = 1.2
+                model.bbox_threshold = 0.2
             # wsi = equalize_adapthist(wsi, kernel_size=256, clip_limit=0.005)
             wsi = equalize_adapthist(wsi, kernel_size=kernel_size, clip_limit=clip_limit)
             # wsi = equalize_adapthist(wsi, kernel_size=256, clip_limit=0.03)
