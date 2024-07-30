@@ -187,7 +187,7 @@ if __name__ == "__main__":
 
         # all_images = ['TestHidden_001.b0.X.npy']
         # all_images = ['TestHidden_009.b0.X.npy']
-        all_images = ['TestHidden_011.b0.X.npy']
+        # all_images = ['TestHidden_011.b0.X.npy']
         # all_images = ['TestHidden_029.b0.X.npy']
         # all_images = ['TestHidden_054.b0.X.npy']
         # all_images = ['TestHidden_056.b0.X.npy']
@@ -196,7 +196,7 @@ if __name__ == "__main__":
 
 
         ### v7 was better
-        # all_images = ['TestHidden_021.b0.X.npy']
+        all_images = ['TestHidden_021.b0.X.npy'] # still bad
         # all_images = ['TestHidden_031.b0.X.npy']
         # all_images = ['TestHidden_035.b0.X.npy']
 
@@ -365,7 +365,7 @@ if __name__ == "__main__":
                                              upper_threshold=args.upper_contrast_threshold)
         low_contrast = (low_contrast and wsi[..., 1].max() == 0) if mean_diff < 0.05 else low_contrast
         low_contrast = low_contrast and not bloodcell
-        bloodcell2 = 0.5 < wsi[..., 1].mean() < 0.7
+        bloodcell2 = 0.5 < wsi[..., 1].mean() < 0.75
         low_contrast = low_contrast and not bloodcell2
         processing_dict[img] += "_low_contrast" if low_contrast else ""
 
