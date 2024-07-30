@@ -328,7 +328,7 @@ if __name__ == "__main__":
             diff = np.abs(image - cp)
             # diff>0
             diff = diff[diff > 0]
-            mean_diff = np.mean(diff)
+            mean_diff = np.median(diff)
             print(f"Mean diff: {mean_diff}")
             print(np.mean(cp))
             islowcontrast = lower_threshold < mean_diff < upper_threshold
