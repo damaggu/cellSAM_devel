@@ -20,7 +20,7 @@ from tqdm import tqdm
 from scipy.signal import find_peaks
 from skimage.segmentation import relabel_sequential
 
-from cellSAM.utils import relabel_mask, f1_score
+from cellSAM.utils import relabel_mask, f1_score, fill_holes_and_remove_small_masks
 from cellSAM.wsi import segment_chunk, segment_wsi
 from cellSAM.model import get_local_model, get_model, segment_cellular_image
 
@@ -127,6 +127,7 @@ if __name__ == "__main__":
     parser.add_argument("--large_cell_threshold", type=float, default=0.01)
     parser.add_argument("--medium_cell_max", type=int, default=60)
     parser.add_argument("--medium_mean_diff_threshold", type=float, default=0.1)
+    parser.add_argument("--cells_min_size", type=int, default=500)
 
     # TODO: adaptive tiling, adaptive overlap, adaptive CLAHE
 
@@ -376,7 +377,7 @@ if __name__ == "__main__":
                                              upper_threshold=args.upper_contrast_threshold)
         low_contrast = (low_contrast and wsi[..., 1].max() == 0) if mean_diff < 0.05 else low_contrast
         low_contrast = low_contrast and not bloodcell
-        bloodcell2 = 0.5 < wsi[..., 2].mean() < 0.75
+        bloodcell2 = 0.5 < wsi[..., 2].mean() < 0.75 and abs(wsi[..., 2].mean()- wsi[..., 1].mean()) > 0.0005
         low_contrast = low_contrast and not bloodcell2
         processing_dict[img] += "_low_contrast" if low_contrast else ""
 
@@ -384,7 +385,7 @@ if __name__ == "__main__":
             clip_limit = 0.01
             kernel_size = 256
             gamma = 2
-            if args.lower_contrast_threshold < mean_diff < 0.06:
+            if args.lower_contrast_threshold < mean_diff < 0.07:
                 clip_limit = 0.05 # try higher
                 kernel_size = 384
                 gamma = 1.2
@@ -401,16 +402,19 @@ if __name__ == "__main__":
 
         def get_median_size(labels):
             sizes = []
+            sizes_abs = []
             for mask in np.unique(labels):
                 if mask == 0:
                     continue
                 area = (labels == mask).sum().item()
                 # normalizing by area
                 sizes.append(area / (labels.shape[0] * labels.shape[1]))
+                sizes_abs.append(area)
             sizes = np.array(sizes)
+            sizes_abs = np.array(sizes_abs)
             # median size
             median_size = np.median(sizes)
-            return median_size, sizes
+            return median_size, sizes, sizes_abs
 
 
         labels = segment_cellular_image(wsi, model=model, normalize=False, device=device)[0]
@@ -419,7 +423,7 @@ if __name__ == "__main__":
         labels = segment_wsi(inp, 200, 200, args.iou_threshold, normalize=False, model=model,
                              device=device, bbox_threshold=args.bbox_threshold).compute()
 
-        median_size, sizes = get_median_size(labels)
+        median_size, sizes, sizes_abs = get_median_size(labels)
 
         print(f"Median size: {median_size:.4f}")
 
@@ -459,6 +463,18 @@ if __name__ == "__main__":
             inp = da.from_array(wsi, chunks=args.tile_size)
             labels = segment_wsi(inp, args.overlap, args.iou_depth, args.iou_threshold, normalize=False, model=model,
                                  device=device, bbox_threshold=args.bbox_threshold).compute()
+
+        # labels to individual masks
+        # filter out masks smaller than min size
+        masks = []
+        for mask in np.unique(labels):
+            m_array = (labels == mask).astype(np.int32)
+            if mask == 0:
+                continue
+            if m_array.sum() < args.cells_min_size:
+                continue
+            masks.append(m_array * mask)
+        labels = np.max(masks, axis=0)
 
         labels = relabel_mask(relabel_sequential(labels)[0])
         model.bbox_threshold = args.bbox_threshold
