@@ -120,11 +120,11 @@ if __name__ == "__main__":
     parser.add_argument("--preproc", type=int, default=0)
     parser.add_argument("--use_gt", type=int, default=0)
 
-    parser.add_argument("--lower_contrast_threshold", type=float, default=0.04)
+    parser.add_argument("--lower_contrast_threshold", type=float, default=0.03)
     parser.add_argument("--upper_contrast_threshold", type=float, default=0.1)
 
     parser.add_argument("--medium_cell_threshold", type=float, default=0.0013)
-    parser.add_argument("--large_cell_threshold", type=float, default=0.003)
+    parser.add_argument("--large_cell_threshold", type=float, default=0.01)
     parser.add_argument("--medium_cell_max", type=int, default=60)
     parser.add_argument("--medium_mean_diff_threshold", type=float, default=0.1)
 
@@ -196,9 +196,20 @@ if __name__ == "__main__":
 
 
         ### v7 was better
-        all_images = ['TestHidden_021.b0.X.npy'] # still bad
+        # all_images = ['TestHidden_021.b0.X.npy'] # still bad
         # all_images = ['TestHidden_031.b0.X.npy']
         # all_images = ['TestHidden_035.b0.X.npy']
+
+
+        # all_images = ['TestHidden_175.b0.X.npy']
+        # all_images = ['TestHidden_092.b0.X.npy']
+        # all_images = ['TestHidden_011.b0.X.npy']
+        # all_images = ['TestHidden_177.b0.X.npy']
+        # all_images = ['TestHidden_157.b0.X.npy'] # TODO: remove small cells, fill holes
+        # all_images = ['TestHidden_098.b0.X.npy']
+        # all_images = ['TestHidden_145.b0.X.npy']
+        all_images = ['TestHidden_011.b0.X.npy']
+        # all_images = ['TestHidden_092.b0.X.npy']
 
 
         ### probmel
@@ -373,11 +384,11 @@ if __name__ == "__main__":
             clip_limit = 0.01
             kernel_size = 256
             gamma = 2
-            if 0.04 < mean_diff < 0.06:
+            if args.lower_contrast_threshold < mean_diff < 0.06:
                 clip_limit = 0.05 # try higher
                 kernel_size = 384
                 gamma = 1.2
-                model.bbox_threshold = 0.2
+                model.bbox_threshold = 0.15
             # wsi = equalize_adapthist(wsi, kernel_size=256, clip_limit=0.005)
             wsi = equalize_adapthist(wsi, kernel_size=kernel_size, clip_limit=clip_limit)
             # wsi = equalize_adapthist(wsi, kernel_size=256, clip_limit=0.03)
