@@ -209,8 +209,14 @@ if __name__ == "__main__":
         # all_images = ['TestHidden_157.b0.X.npy'] # TODO: remove small cells, fill holes
         # all_images = ['TestHidden_098.b0.X.npy']
         # all_images = ['TestHidden_145.b0.X.npy']
-        all_images = ['TestHidden_001.b0.X.npy']
+        # all_images = ['TestHidden_001.b0.X.npy']
         # all_images = ['TestHidden_092.b0.X.npy']
+
+
+        all_images = ['TestHidden_027.b0.X.npy']
+        all_images = ['TestHidden_092.b0.X.npy']
+        # all_images = ['TestHidden_001.b0.X.npy']
+        # all_images = ['TestHidden_334.b0.X.npy']
 
         # empty cells
         # 0.15
@@ -384,7 +390,7 @@ if __name__ == "__main__":
                                              upper_threshold=args.upper_contrast_threshold)
         low_contrast = (low_contrast and wsi[..., 1].max() == 0) if mean_diff < 0.05 else low_contrast
         low_contrast = low_contrast and not bloodcell
-        bloodcell2 = 0.5 < wsi[..., 2].mean() < 0.75 and abs(wsi[..., 2].mean()- wsi[..., 1].mean()) > 0.0005
+        bloodcell2 = 0.5 < wsi[..., 2].mean() < 0.75 and abs(wsi[..., 2].mean()- wsi[..., 1].mean()) > 0.0005 and wsi[..., 1].max() != 0
         low_contrast = low_contrast and not bloodcell2
         processing_dict[img] += "_low_contrast" if low_contrast else ""
 
