@@ -209,9 +209,16 @@ if __name__ == "__main__":
         # all_images = ['TestHidden_157.b0.X.npy'] # TODO: remove small cells, fill holes
         # all_images = ['TestHidden_098.b0.X.npy']
         # all_images = ['TestHidden_145.b0.X.npy']
-        all_images = ['TestHidden_011.b0.X.npy']
+        all_images = ['TestHidden_001.b0.X.npy']
         # all_images = ['TestHidden_092.b0.X.npy']
 
+        # empty cells
+        # 0.15
+
+        # examples 001,
+        # 122 v 10 vs. v14
+
+        # double check boarders -> ignored? -> double check smlall cells on # 122
 
         ### probmel
         # all_images = ['TestHidden_347.b0.X.npy']
@@ -464,14 +471,15 @@ if __name__ == "__main__":
             labels = segment_wsi(inp, args.overlap, args.iou_depth, args.iou_threshold, normalize=False, model=model,
                                  device=device, bbox_threshold=args.bbox_threshold).compute()
 
-        # labels to individual masks
-        # filter out masks smaller than min size
+        # # labels to individual masks
+        # # filter out masks smaller than min size
         masks = []
         for mask in np.unique(labels):
             m_array = (labels == mask).astype(np.int32)
             if mask == 0:
                 continue
-            if m_array.sum() < args.cells_min_size:
+            # is m_array at the edge?
+            if m_array.sum() < args.cells_min_size and m_array[10:-10, 10:-10].sum() == 0:
                 continue
             masks.append(m_array * mask)
         labels = np.max(masks, axis=0)
