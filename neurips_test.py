@@ -119,7 +119,7 @@ if __name__ == "__main__":
     parser.add_argument("--plt_gt", type=int, default=0)
     parser.add_argument("--preproc", type=int, default=0)
     parser.add_argument("--use_gt", type=int, default=0)
-    parser.add_argument("--verbose", type=int, default=1)
+    parser.add_argument("--verbose", type=int, default=0)
 
     parser.add_argument("--lower_contrast_threshold", type=float, default=0.025)
     parser.add_argument("--upper_contrast_threshold", type=float, default=0.1)
