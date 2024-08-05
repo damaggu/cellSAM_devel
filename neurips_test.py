@@ -119,15 +119,17 @@ if __name__ == "__main__":
     parser.add_argument("--plt_gt", type=int, default=0)
     parser.add_argument("--preproc", type=int, default=0)
     parser.add_argument("--use_gt", type=int, default=0)
+    parser.add_argument("--verbose", type=int, default=1)
 
-    parser.add_argument("--lower_contrast_threshold", type=float, default=0.03)
+    parser.add_argument("--lower_contrast_threshold", type=float, default=0.025)
     parser.add_argument("--upper_contrast_threshold", type=float, default=0.1)
 
-    parser.add_argument("--medium_cell_threshold", type=float, default=0.0013)
-    parser.add_argument("--large_cell_threshold", type=float, default=0.01)
+    parser.add_argument("--medium_cell_threshold", type=float, default=0.002)
+    parser.add_argument("--large_cell_threshold", type=float, default=0.015)
     parser.add_argument("--medium_cell_max", type=int, default=60)
     parser.add_argument("--medium_mean_diff_threshold", type=float, default=0.1)
     parser.add_argument("--cells_min_size", type=int, default=500)
+    parser.add_argument("--border_size", type=int, default=5)
 
     # TODO: adaptive tiling, adaptive overlap, adaptive CLAHE
 
@@ -213,10 +215,19 @@ if __name__ == "__main__":
         # all_images = ['TestHidden_092.b0.X.npy']
 
 
-        all_images = ['TestHidden_027.b0.X.npy']
-        all_images = ['TestHidden_092.b0.X.npy']
+        # all_images = ['TestHidden_027.b0.X.npy']
+        # all_images = ['TestHidden_092.b0.X.npy']
         # all_images = ['TestHidden_001.b0.X.npy']
         # all_images = ['TestHidden_334.b0.X.npy']
+        # all_images = ['TestHidden_304.b0.X.npy'] # needs lower threshold of 0.0025
+        # all_images = ['TestHidden_248.b0.X.npy'] # adjusting median size to acc for this
+        # all_images = ['TestHidden_316.b0.X.npy'] # adjusting median size to acc for this
+        # all_images = ['TestHidden_331.b0.X.npy'] # adjusting large cell size
+        all_images = ['TestHidden_342.b0.X.npy'] # adjusting large cell size
+
+
+
+        # 83; adjusting edge to 5 or so; kick out v2 and v7; osilab overlap.... 263, 164
 
         # empty cells
         # 0.15
@@ -485,7 +496,7 @@ if __name__ == "__main__":
             if mask == 0:
                 continue
             # is m_array at the edge?
-            if m_array.sum() < args.cells_min_size and m_array[10:-10, 10:-10].sum() == 0:
+            if m_array.sum() < args.cells_min_size and m_array[args.border_size:-args.border_size, args.border_size:-args.border_size].sum() == 0:
                 continue
             masks.append(m_array * mask)
         labels = np.max(masks, axis=0)
@@ -526,8 +537,7 @@ if __name__ == "__main__":
             plt.savefig(os.path.join(results_inspections, img.split('.')[0] + '.png'))
         print(f"Processed {img}")
 
-        verbose = False
-        if verbose:
+        if args.verbose:
             plt.imshow(labels)
             plt.title(img.split('.')[0] + "_{}".format(labels.max()))
             plt.show()
