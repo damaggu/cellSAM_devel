@@ -223,7 +223,9 @@ if __name__ == "__main__":
         # all_images = ['TestHidden_248.b0.X.npy'] # adjusting median size to acc for this
         # all_images = ['TestHidden_316.b0.X.npy'] # adjusting median size to acc for this
         # all_images = ['TestHidden_331.b0.X.npy'] # adjusting large cell size
-        all_images = ['TestHidden_342.b0.X.npy'] # adjusting large cell size
+        # all_images = ['TestHidden_342.b0.X.npy'] # adjusting large cell size
+        # all_images = ['TestHidden_083.b0.X.npy'] # adjusting large cell size
+        # all_images = ['TestHidden_399.b0.X.npy'] # adjusting large cell size
 
 
 
@@ -401,6 +403,7 @@ if __name__ == "__main__":
                                              upper_threshold=args.upper_contrast_threshold)
         low_contrast = (low_contrast and wsi[..., 1].max() == 0) if mean_diff < 0.05 else low_contrast
         low_contrast = low_contrast and not bloodcell
+        low_contrast = low_contrast and (0.4 > wsi[..., 2].mean() or wsi[..., 2].mean() > 0.5)
         bloodcell2 = 0.5 < wsi[..., 2].mean() < 0.75 and abs(wsi[..., 2].mean()- wsi[..., 1].mean()) > 0.0005 and wsi[..., 1].max() != 0
         low_contrast = low_contrast and not bloodcell2
         processing_dict[img] += "_low_contrast" if low_contrast else ""
