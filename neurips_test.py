@@ -224,10 +224,11 @@ if __name__ == "__main__":
         # all_images = ['TestHidden_316.b0.X.npy'] # adjusting median size to acc for this
         # all_images = ['TestHidden_331.b0.X.npy'] # adjusting large cell size
         # all_images = ['TestHidden_342.b0.X.npy'] # adjusting large cell size
-        # all_images = ['TestHidden_083.b0.X.npy'] # adjusting large cell size
-        # all_images = ['TestHidden_399.b0.X.npy'] # adjusting large cell size
+        # all_images = ['TestHidden_083.b0.X.npy'] # adjusting large cell size, mean=0.066, std = 0.054
+        # all_images = ['TestHidden_399.b0.X.npy'] # adjusting large cell size, mean=0.0699, std = 0.053
         # all_images = ['TestHidden_122.b0.X.npy'] # adjusting large cell size
         # all_images = ['TestHidden_124.b0.X.npy'] # adjusting large cell size
+        all_images = ['TestHidden_318.b0.X.npy'] # low contrast problem, mean=0.066, std = 0.048
 
 
 
@@ -369,10 +370,11 @@ if __name__ == "__main__":
             # diff>0
             diff = diff[diff > 0]
             mean_diff = np.median(diff)
+            mean_std = np.std(diff)
             print(f"Mean diff: {mean_diff}")
             print(np.mean(cp))
             islowcontrast = lower_threshold < mean_diff < upper_threshold
-            return [islowcontrast, mean_diff]
+            return [islowcontrast, mean_diff, mean_std]
 
 
         # new values
@@ -401,7 +403,7 @@ if __name__ == "__main__":
 
         # wsi[..., 1] = wsi[..., 0]
 
-        low_contrast, mean_diff = is_low_contrast_clahe(wsi, lower_threshold=args.lower_contrast_threshold,
+        low_contrast, mean_diff, mean_std = is_low_contrast_clahe(wsi, lower_threshold=args.lower_contrast_threshold,
                                              upper_threshold=args.upper_contrast_threshold)
         low_contrast = (low_contrast and wsi[..., 1].max() == 0) if mean_diff < 0.05 else low_contrast
         low_contrast = low_contrast and not bloodcell
@@ -414,11 +416,14 @@ if __name__ == "__main__":
             clip_limit = 0.01
             kernel_size = 256
             gamma = 2
-            if args.lower_contrast_threshold < mean_diff < 0.065: #0.066
-                clip_limit = 0.02 # try higher
+            if mean_diff > args.lower_contrast_threshold and mean_std < 0.05:
+                clip_limit = 0.02
                 kernel_size = 384
                 gamma = 1.2
-                model.bbox_threshold = 0.3 if mean_diff > 0.06 else 0.15
+                model.bbox_threshold = 0.25
+            if mean_diff > 0.065 and mean_std < 0.05:
+                clip_limit = 0.05
+                model.bbox_threshold = 0.15
             # wsi = equalize_adapthist(wsi, kernel_size=256, clip_limit=0.005)
             wsi = equalize_adapthist(wsi, kernel_size=kernel_size, clip_limit=clip_limit)
             # wsi = equalize_adapthist(wsi, kernel_size=256, clip_limit=0.03)
