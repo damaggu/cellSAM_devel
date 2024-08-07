@@ -420,7 +420,7 @@ if __name__ == "__main__":
                 clip_limit = 0.02
                 kernel_size = 384
                 gamma = 1.2
-                model.bbox_threshold = 0.2
+                model.bbox_threshold = 0.15
             if mean_diff > 0.065 and mean_std < 0.05:
                 clip_limit = 0.05
                 model.bbox_threshold = 0.15
