@@ -228,9 +228,8 @@ if __name__ == "__main__":
         # all_images = ['TestHidden_399.b0.X.npy'] # adjusting large cell size, mean=0.0699, std = 0.053
         # all_images = ['TestHidden_122.b0.X.npy'] # adjusting large cell size
         # all_images = ['TestHidden_124.b0.X.npy'] # adjusting large cell size
-        all_images = ['TestHidden_318.b0.X.npy'] # low contrast problem, mean=0.066, std = 0.048
-
-
+        # all_images = ['TestHidden_029.b0.X.npy'] # low contrast problem, mean=0.066, std = 0.048
+        all_images = ['TestHidden_203.b0.X.npy'] # low contrast problem, mean=0.066, std = 0.048
 
         # 83; adjusting edge to 5 or so; kick out v2 and v7; osilab overlap.... 263, 164
 
@@ -424,6 +423,8 @@ if __name__ == "__main__":
             if mean_diff > 0.065 and mean_std < 0.05:
                 clip_limit = 0.05
                 model.bbox_threshold = 0.15
+            if mean_diff > 0.065 and (0.035 < mean_std < 0.04):
+                clip_limit = 0.01
             # wsi = equalize_adapthist(wsi, kernel_size=256, clip_limit=0.005)
             wsi = equalize_adapthist(wsi, kernel_size=kernel_size, clip_limit=clip_limit)
             # wsi = equalize_adapthist(wsi, kernel_size=256, clip_limit=0.03)
