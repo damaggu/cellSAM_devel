@@ -155,7 +155,7 @@ if __name__ == "__main__":
         # all_images = ['cell_00038.b0.X.npy']
 
         # all_images = ['cell_00044.b0.X.npy']
-        # all_images = ['cell_00023.b0.X.npy']
+        all_images = ['cell_00011.b0.X.npy']
         # all_images = ['cell_00027.b0.X.npy']
         # all_images = ['cell_00028.b0.X.npy']
         # 'TestHidden_043'
@@ -229,7 +229,7 @@ if __name__ == "__main__":
         # all_images = ['TestHidden_122.b0.X.npy'] # adjusting large cell size
         # all_images = ['TestHidden_124.b0.X.npy'] # adjusting large cell size
         # all_images = ['TestHidden_029.b0.X.npy'] # low contrast problem, mean=0.066, std = 0.048
-        all_images = ['TestHidden_203.b0.X.npy'] # low contrast problem, mean=0.066, std = 0.048
+        # all_images = ['TestHidden_203.b0.X.npy'] # low contrast problem, mean=0.066, std = 0.048
 
         # 83; adjusting edge to 5 or so; kick out v2 and v7; osilab overlap.... 263, 164
 
@@ -338,7 +338,7 @@ if __name__ == "__main__":
                 if len(gt_path) > 1:
                     raise ValueError("More than one ground truth image found")
                 gt_img = iio.imread(gt_path[0])
-            elif 'hidden' in path_to_all_imgs:
+            elif 'hidden' or 'test' in path_to_all_imgs:
                 # /data/user-data/rdilip/cellSAM/raw/neurips/Testing/Hidden/images/
                 gt_path = [s for s in hidden_raw_imgs if base in s]
                 if len(gt_path) > 1:
@@ -419,7 +419,7 @@ if __name__ == "__main__":
                 clip_limit = 0.02
                 kernel_size = 384
                 gamma = 1.2
-                model.bbox_threshold = 0.125
+                model.bbox_threshold = 0.15
             if mean_diff > 0.065 and mean_std < 0.05:
                 clip_limit = 0.05
                 model.bbox_threshold = 0.15
