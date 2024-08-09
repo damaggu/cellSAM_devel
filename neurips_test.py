@@ -311,6 +311,8 @@ if __name__ == "__main__":
 
     processing_dict = {}
     for img in tqdm(all_images[start:end]):
+        if "Adenoid" in img or "Tonsil" in img:
+            continue
         print(f"Starting to process {img}")
         processing_dict[img] = ""
 
