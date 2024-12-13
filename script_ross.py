@@ -1,28 +1,19 @@
-import os
-import cv2
-import json
-import torch
-import joblib
-import skimage
 import argparse
+import os
 
-import numpy as np
-import pickle as pkl
 import dask.array as da
 import imageio.v3 as iio
 import lightning.pytorch as pl
 import matplotlib.pyplot as plt
-
-from glob import glob
-
-from skimage.exposure import adjust_gamma, equalize_adapthist, adjust_log
-from tqdm import tqdm
+import numpy as np
+import torch
 from scipy.signal import find_peaks
+from skimage.exposure import adjust_gamma, equalize_adapthist
 from skimage.segmentation import relabel_sequential
 
-from cellSAM.utils import relabel_mask, f1_score, fill_holes_and_remove_small_masks
-from cellSAM.wsi import segment_chunk, segment_wsi
-from cellSAM.model import get_local_model, get_model, segment_cellular_image
+from cellSAM.model import get_local_model, segment_cellular_image
+from cellSAM.utils import relabel_mask
+from cellSAM.wsi import segment_wsi
 
 
 def mask_outline(mask):
