@@ -1,14 +1,8 @@
-import argparse
-import os
-
 import dask.array as da
 import imageio.v3 as iio
-import lightning.pytorch as pl
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from scipy.signal import find_peaks
-from skimage.exposure import adjust_gamma, equalize_adapthist
 from skimage.segmentation import relabel_sequential
 
 from cellSAM.model import get_local_model, segment_cellular_image
@@ -110,117 +104,14 @@ def get_median_size(labels):
     return median_size, sizes, sizes_abs
 
 
+
 if __name__ == "__main__":
-    # fix the seed
-    pl.seed_everything(42)
-
-    # argsparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--num_chunks", type=int, default=8)
-    parser.add_argument("--chunk", type=int, default=0)
-    parser.add_argument("--tile_size", type=int, default=256)
-    parser.add_argument("--model_path", type=str, default=None)
-    parser.add_argument("--bbox_threshold", type=float, default=0.4)
-    parser.add_argument("--debug", type=int, default=0)
-    parser.add_argument("--gpu", type=int, default=0)
-    parser.add_argument("--results_path", type=str, default='./results1024/')
-    parser.add_argument("--overlap", type=int, default=100)
-    parser.add_argument("--iou_depth", type=int, default=100)
-    parser.add_argument("--iou_threshold", type=float, default=0.5)
-    parser.add_argument("--img_path", type=str, default='./debugdata/images/cell_00849.png')
-    parser.add_argument("--plt_gt", type=int, default=0)
-    parser.add_argument("--preproc", type=int, default=0)
-    parser.add_argument("--use_gt", type=int, default=0)
-    parser.add_argument("--verbose", type=int, default=0)
-
-    parser.add_argument("--lower_contrast_threshold", type=float, default=0.025)
-    parser.add_argument("--upper_contrast_threshold", type=float, default=0.1)
-
-    parser.add_argument("--medium_cell_threshold", type=float, default=0.002)
-    parser.add_argument("--large_cell_threshold", type=float, default=0.015)
-    parser.add_argument("--medium_cell_max", type=int, default=60)
-    parser.add_argument("--medium_mean_diff_threshold", type=float, default=0.1)
-    parser.add_argument("--cells_min_size", type=int, default=500)
-    parser.add_argument("--border_size", type=int, default=5)
-
-    # TODO: adaptive tiling, adaptive overlap, adaptive CLAHE
-
-    args = parser.parse_args()
-
-    device = f'cuda:{args.gpu}' if torch.cuda.is_available() else 'cpu'
-
-    if args.model_path is not None:
-        modelpath = args.model_path
-        model = get_local_model(modelpath)
-        model.bbox_threshold = args.bbox_threshold
-        # model.iou_threshold = 0.9
-        if torch.cuda.is_available():
-            model = model.to(device)
-    else:
-        model = None
-
-    verbose = True
-
-    img = iio.imread(args.img_path)
-    # switch last 2 channels bc nuclear and whoelcell are switched, #TODO: autmatically detect or have input arg like cellpose
-    img = img[..., [0, 2, 1]]
-    # to float
-    img = img.astype(np.float32) / 255.0
-
-    ### some additional processing for low-contrast images -- not strictly necessary
-    low_contrast, mean_diff, mean_std = is_low_contrast_clahe(img, lower_threshold=args.lower_contrast_threshold,
-                                                              upper_threshold=args.upper_contrast_threshold)
-    low_contrast = (low_contrast and img[..., 1].max() == 0) if mean_diff < 0.05 else low_contrast
-    if low_contrast:
-        clip_limit = 0.01
-        kernel_size = 256
-        gamma = 2
-        if mean_diff > args.lower_contrast_threshold and mean_std < 0.05:
-            clip_limit = 0.02
-            kernel_size = 384
-            gamma = 1.2
-            model.bbox_threshold = 0.15
-        if mean_diff > 0.065 and mean_std < 0.05:
-            clip_limit = 0.05
-            model.bbox_threshold = 0.15
-        if mean_diff > 0.065 and (0.035 < mean_std < 0.04):
-            clip_limit = 0.01
-        img = equalize_adapthist(img, kernel_size=kernel_size, clip_limit=clip_limit)
-        img = adjust_gamma(img, gamma=gamma)
-
-    inp = da.from_array(img, chunks=256)
-    labels = segment_wsi(inp, 200, 200, args.iou_threshold, normalize=False, model=model,
-                         device=device, bbox_threshold=args.bbox_threshold).compute()
-
-    median_size, sizes, sizes_abs = get_median_size(labels)
-
-    print(f"Median size: {median_size:.4f}")
-
-    # only if cells are small we to WSI inference
-    if median_size < args.medium_cell_threshold:
-        doing_wsi = True
-        # cells are medium or small -> do WSI
-        inp = da.from_array(img, chunks=args.tile_size)
-        labels = segment_wsi(inp, args.overlap, args.iou_depth, args.iou_threshold, normalize=False, model=model,
-                             device=device, bbox_threshold=args.bbox_threshold).compute()
-    else:
-        labels = segment_cellular_image(img, model=model, normalize=False, device=device)[0]
-
-    # # labels to individual masks
-    # # filter out masks smaller than min size
-    masks = []
-    for mask in np.unique(labels):
-        m_array = (labels == mask).astype(np.int32)
-        if mask == 0:
-            continue
-        # is m_array at the edge?
-        if m_array.sum() < args.cells_min_size and m_array[args.border_size:-args.border_size,
-                                                   args.border_size:-args.border_size].sum() == 0:
-            continue
-        masks.append(m_array * mask)
-    labels = np.max(masks, axis=0)
-
-    result = relabel_mask(relabel_sequential(labels)[0])
-
-    plt.imshow(result)
-    plt.show()
+    cellsam_pipeline(
+        img='./debugdata/images/OpenTest_049.tif',
+        model_path=None,
+        chunks=256,
+        low_contrast_enhancement=False,
+        use_wsi=True,
+        gauge_cell_size=False,
+        visualize=True,
+    )
