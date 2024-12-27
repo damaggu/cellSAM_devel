@@ -15,6 +15,7 @@ import numpy as np
 
 from dask_image.ndmeasure._utils import _label
 from sklearn import metrics as sk_metrics
+from tqdm import tqdm
 
 from .model import segment_cellular_image
 
@@ -66,7 +67,9 @@ def segment_wsi(image, overlap, iou_depth, iou_threshold, **segmentation_kwargs)
     cumulative_time = 0
     cnt = 0
 
-    for index, input_block in block_iter:
+    # num blocks
+    print(f"Total blocks: {total_blocks}")
+    for index, input_block in tqdm(block_iter):
         block_time = time.time()
         cnt += 1
 
