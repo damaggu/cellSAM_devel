@@ -6,103 +6,127 @@ import torch
 from skimage.segmentation import relabel_sequential
 
 from cellSAM.model import get_local_model, segment_cellular_image
-from cellSAM.utils import relabel_mask
+from cellSAM.utils import relabel_mask, get_median_size, enhance_low_contrast
 from cellSAM.wsi import segment_wsi
 
 
-def mask_outline(mask):
-    """got this from Ross. the boundaries end up being slightly thinner than skimage"""
-    outline = np.zeros_like(mask, dtype=np.uint8)
-    outline[:, 1:][mask[:, :-1] != mask[:, 1:]] = 1
-    outline[:-1, :][mask[:-1, :] != mask[1:, :]] = 1
-    return outline
+def use_cellsize_gaging(
+        inp,
+        model,
+        device,
+        overlap=200,
+        iou_depth=200,
+        iou_threshold=0.5,
+        bbox_threshold=0.4,
+        medium_cell_threshold=0.002,
+        tile_size=256,
+):
+    labels = segment_wsi(inp, overlap, iou_depth, iou_threshold, normalize=False, model=model,
+                         device=device, bbox_threshold=bbox_threshold).compute()
+
+    median_size, sizes, sizes_abs = get_median_size(labels)
+
+    print(f"Median size: {median_size:.4f}")
+
+    # only if cells are small we to WSI inference
+    if median_size < medium_cell_threshold:
+        doing_wsi = True
+        # cells are medium or small -> do WSI
+        inp = da.from_array(inp, chunks=tile_size)
+        labels = segment_wsi(inp, overlap, iou_depth, iou_threshold, normalize=False, model=model,
+                             device=device, bbox_threshold=bbox_threshold).compute()
+    else:
+        labels = segment_cellular_image(inp, model=model, normalize=False, device=device)[0]
+
+    return labels
 
 
-def add_white_borders(img, mask, color=None):
-    if color is None:
-        color = [1.0, 1.0, 1.0]
-    assert img.shape[:2] == mask.shape
-    assert img.shape[2] == 3
-    assert len(img.shape) == 3
+def plot_output(labels,
+                border_size=5,
+                cells_min_size=500,
+                ):
+    # labels to individual masks
+    # filter out masks smaller than min size
+    masks = []
+    for mask in np.unique(labels):
+        m_array = (labels == mask).astype(np.int32)
+        if mask == 0:
+            continue
+        # is m_array at the edge?
+        if m_array.sum() < cells_min_size and m_array[border_size:-border_size,
+                                                   border_size:-border_size].sum() == 0:
+            continue
+        masks.append(m_array * mask)
 
-    boundary = mask_outline(mask)
-    img = np.array(img)  # copy
-    r, c = np.where(np.isclose(1.0, boundary))
-    img[r, c] = color
+    if len(masks) == 0:
+        print("No cells found")
+        return
+    labels = np.max(masks, axis=0)
+    result = relabel_mask(relabel_sequential(labels)[0])
+
+    plt.imshow(result)
+    plt.show()
+
+def load_image(img, swap_channels=False):
+    img = iio.imread(img)
+    if img.ndim == 2:
+        img = np.stack([img] * 3, axis=-1)
+    if swap_channels:
+        # switch last 2 channels bc nuclear and whoelcell are switched, #TODO: autmatically detect or have input arg like cellpose
+        img = img[..., [0, 2, 1]]
+    img = img.astype(np.float32)
+    # normalize to 0-1 min max - channelwise
+    for i in range(3):
+        img[..., i] = (img[..., i] - np.min(img[..., i])) / (np.max(img[..., i]) - np.min(img[..., i]))
+
     return img
 
 
-def contains_any_number(s, numbers):
-    return any(num in s for num in numbers)
+def cellsam_pipeline(
+        img,  # str or np.array
+        chunks=256,
+        model_path=None,
+        bbox_threshold=0.4,
+        low_contrast_enhancement=True,
+        swap_channels=False,
+        use_wsi=True,
+        gauge_cell_size=True,
+        visualize=False,
+        overlap=200,
+        iou_depth=200,
+        iou_threshold=0.5,
+):
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
+    if model_path is not None:
+        modelpath = model_path
+        model = get_local_model(modelpath)
+        model.bbox_threshold = bbox_threshold
+        model = model.to(device)
+    else:
+        model = None
 
-def featurizer(clf, img):
-    """ img is H, W, C """
-    data = img[..., 1:].ravel()
-    counts, bins = np.histogram(data, bins=40, density=True)
-    n_peaks = len(find_peaks(counts, height=0.5)[0])
+    if isinstance(img, str):
+        img = load_image(img, swap_channels=swap_channels)
 
-    feature = np.array([np.mean(data), np.std(data), n_peaks, *img.shape[:-1]])
-    is_big_bc = clf.predict(feature.reshape(1, -1))
+    if low_contrast_enhancement:
+        img = enhance_low_contrast(img)
 
-    return is_big_bc
+    inp = da.from_array(img, chunks=chunks)
 
+    if use_wsi:
+        if gauge_cell_size:
+            labels = use_cellsize_gaging(inp, model, device)
+        else:
+            labels = segment_wsi(inp, overlap, iou_depth, iou_threshold, normalize=False, model=model,
+                                 device=device, bbox_threshold=bbox_threshold).compute()
+    else:
+        labels = segment_cellular_image(inp, model=model, normalize=False, device=device)[0]
 
-def is_low_contrast_clahe(image, lower_threshold=0.04, upper_threshold=0.05, lower_mean=0.15, upper_mean=0.25):
-    # to greyscale
-    # image = image.mean(axis=2)
-    # min-max scaling
-    cp = equalize_adapthist(image, kernel_size=256)
-    diff = np.abs(image - cp)
-    # diff>0
-    diff = diff[diff > 0]
-    mean_diff = np.median(diff)
-    mean_std = np.std(diff)
-    print(f"Mean diff: {mean_diff}")
-    print(np.mean(cp))
-    islowcontrast = lower_threshold < mean_diff < upper_threshold
-    return [islowcontrast, mean_diff, mean_std]
-
-
-def resize_results(save_dir, img_dir, results_dir, gt_dir):
-    all_images = os.listdir(img_dir)
-    all_images = sorted([img for img in all_images if img.endswith('.X.npy')])
-
-    os.makedirs(save_dir, exist_ok=True)
-    for img in all_images:
-        gt_path = os.path.join(gt_dir, img.split('.')[0] + '_label.tiff')
-        gt_mask = iio.imread(gt_path)
-
-        label_path = os.path.join(results_dir, img.split('.')[0] + '.tiff')
-        labels = iio.imread(label_path)
-
-        if gt_mask.shape[0] < 512:
-            # remove padding
-            padding = 512 - gt_mask.shape[0]
-            labels = labels[padding // 2:-padding // 2, :]
-        if gt_mask.shape[1] < 512:
-            padding = 512 - gt_mask.shape[1]
-            labels = labels[:, padding // 2:-padding // 2]
-
-        iio.imwrite(os.path.join(save_dir, img.split('.')[0] + '.tiff'), labels)
-
-
-def get_median_size(labels):
-    sizes = []
-    sizes_abs = []
-    for mask in np.unique(labels):
-        if mask == 0:
-            continue
-        area = (labels == mask).sum().item()
-        # normalizing by area
-        sizes.append(area / (labels.shape[0] * labels.shape[1]))
-        sizes_abs.append(area)
-    sizes = np.array(sizes)
-    sizes_abs = np.array(sizes_abs)
-    # median size
-    median_size = np.median(sizes)
-    return median_size, sizes, sizes_abs
-
+    if visualize:
+        plot_output(labels)
+        plt.imshow(img)
+        plt.show()
 
 
 if __name__ == "__main__":
