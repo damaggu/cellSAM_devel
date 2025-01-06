@@ -3,6 +3,7 @@ import imageio.v3 as iio
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from cellSAM.model import get_model
 from skimage.segmentation import relabel_sequential
 
 from cellSAM.model import get_local_model, segment_cellular_image
@@ -77,7 +78,11 @@ def load_image(img, swap_channels=False):
     img = img.astype(np.float32)
     # normalize to 0-1 min max - channelwise
     for i in range(3):
-        img[..., i] = (img[..., i] - np.min(img[..., i])) / (np.max(img[..., i]) - np.min(img[..., i]))
+        # To accomodate empty channels
+        if (np.max(img[..., i]) - np.min(img[..., i])) != 0:
+            img[..., i] = (img[..., i] - np.min(img[..., i])) / (np.max(img[..., i]) - np.min(img[..., i]))
+        else:
+            img[..., i] = img[..., i]
 
     return img
 
@@ -105,6 +110,14 @@ def cellsam_pipeline(
         model = model.to(device)
     else:
         model = None
+        
+        # To prevent creating model for each block
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        print("Warning, using standard model. For better performance, use a model trained on your data.")
+        model = get_model(None)
+        model = model.to(device)
+        model.eval()
+        
 
     if isinstance(img, str):
         img = load_image(img, swap_channels=swap_channels)
