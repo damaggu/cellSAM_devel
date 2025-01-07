@@ -3,6 +3,7 @@ import imageio.v3 as iio
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from tqdm import tqdm
 from cellSAM.model import get_model
 from skimage.segmentation import relabel_sequential
 
@@ -48,8 +49,11 @@ def plot_output(labels,
                 ):
     # labels to individual masks
     # filter out masks smaller than min size
-    masks = []
-    for mask in np.unique(labels):
+
+    uniq_labs = np.unique(labels)
+    masks = np.zeros((labels.shape[0], labels.shape[1]), dtype=np.int32)
+    for idx in tqdm(range(len(uniq_labs))):
+        mask = uniq_labs[idx]
         m_array = (labels == mask).astype(np.int32)
         if mask == 0:
             continue
@@ -57,13 +61,18 @@ def plot_output(labels,
         if m_array.sum() < cells_min_size and m_array[border_size:-border_size,
                                                    border_size:-border_size].sum() == 0:
             continue
-        masks.append(m_array * mask)
+        masks[(labels==mask)] = mask
 
     if len(masks) == 0:
         print("No cells found")
         return
-    labels = np.max(masks, axis=0)
-    result = relabel_mask(relabel_sequential(labels)[0])
+    
+    labels = masks
+
+    # result = labels
+    # result = relabel_mask(relabel_sequential(labels)[0]) 
+    # relabel_mask already calls relabel_sequential, so above line seems redundant
+    result = relabel_mask(labels)
 
     plt.imshow(result)
     plt.show()
