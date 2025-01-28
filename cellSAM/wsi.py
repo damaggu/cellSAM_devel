@@ -40,14 +40,14 @@ def segment_chunk(chunk, model=None, **kwargs):
     return mask.astype(np.int32), mask.max()
 
 
-def segment_wsi(image, overlap, iou_depth, iou_threshold, **segmentation_kwargs):
+def segment_wsi(image, block_size, overlap, iou_depth, iou_threshold, **segmentation_kwargs):
 
     if image.ndim == 2:
         image = image[..., None]
 
     image = da.asarray(image)
     # balance=True may use suboptimal chunking and be slower
-    image = image.rechunk({0:1000, 1:1000, -1: -1})
+    image = image.rechunk({0:block_size, 1:block_size, -1: -1})
 
     depth = (overlap, overlap)
     boundary = "periodic"
@@ -78,6 +78,7 @@ def segment_wsi(image, overlap, iou_depth, iou_threshold, **segmentation_kwargs)
             input_block,
             **segmentation_kwargs
         )
+        print("unique in block,", len(np.unique(labeled_block)))
 
         shape = input_block.shape[:-1]
         # labeled_block = da.from_delayed(labeled_block, shape=shape, dtype=np.int32)
