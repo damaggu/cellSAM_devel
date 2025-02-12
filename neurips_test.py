@@ -155,7 +155,7 @@ if __name__ == "__main__":
         # all_images = ['cell_00038.b0.X.npy']
 
         # all_images = ['cell_00044.b0.X.npy']
-        all_images = ['cell_00011.b0.X.npy']
+        # all_images = ['cell_00011.b0.X.npy']
         # all_images = ['cell_00027.b0.X.npy']
         # all_images = ['cell_00028.b0.X.npy']
         # 'TestHidden_043'
@@ -171,6 +171,7 @@ if __name__ == "__main__":
         # all_images = ['TestHidden_398.b0.X.npy'] # medium
         # all_images = ['TestHidden_179.b0.X.npy']  #
         # all_images = ['TestHidden_393.b0.X.npy'] # small -> low contrast
+        # all_images = ['TestHidden_334.b0.X.npy'] # small -> low contrast
         # all_images = ['TestHidden_005.b0.X.npy'] # large
         # all_images = ['TestHidden_047.b0.X.npy'] # medium
         # all_images = ['TestHidden_048.b0.X.npy'] # medium
@@ -184,8 +185,8 @@ if __name__ == "__main__":
         # all_images = ['TestHidden_005.b0.X.npy']
         # all_images = ['TestHidden_179.b0.X.npy']
         # all_images = ['TestHidden_189.b0.X.npy']
-        # all_images = ['TestHidden_002.b0.X.npy']
-        # all_images = ['TestHidden_006.b0.X.npy']
+        all_images = ['TestHidden_002.b0.X.npy']
+        all_images = ['TestHidden_006.b0.X.npy']
 
 
         # all_images = ['TestHidden_001.b0.X.npy']
@@ -325,6 +326,13 @@ if __name__ == "__main__":
         img_pth = os.path.join(path_to_all_imgs, img)
         wsi = np.load(img_pth).transpose((1, 2, 0))
 
+        fig, ax = plt.subplots(1, 3, figsize=(15, 5))
+        ax[0].imshow(wsi[..., 0])
+        ax[1].imshow(wsi[..., 1])
+        ax[2].imshow(wsi[..., 2])
+        plt.show()
+
+
         # loading gt mask
         if plt_gt:
             # load from rohits path (.npy files)
@@ -459,7 +467,7 @@ if __name__ == "__main__":
         inp = da.from_array(wsi, chunks=512)
         labels = segment_wsi(inp, 200, 200, args.iou_threshold, normalize=False, model=model,
                              device=device, bbox_threshold=args.bbox_threshold).compute()
-
+        #
         median_size, sizes, sizes_abs = get_median_size(labels)
 
         print(f"Median size: {median_size:.4f}")
