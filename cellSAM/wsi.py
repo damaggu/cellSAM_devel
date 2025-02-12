@@ -46,7 +46,8 @@ def segment_wsi(image, overlap, iou_depth, iou_threshold, **segmentation_kwargs)
         image = image[..., None]
 
     image = da.asarray(image)
-    image = image.rechunk({-1: -1}, balance=True)
+    # balance=True may use suboptimal chunking and be slower
+    image = image.rechunk({0:1000, 1:1000, -1: -1})
 
     depth = (overlap, overlap)
     boundary = "periodic"
@@ -127,6 +128,8 @@ def segment_wsi(image, overlap, iou_depth, iou_threshold, **segmentation_kwargs)
             iou_depth,
             iou_threshold=iou_threshold,
         )
+    else:
+        iou_depth = da.overlap.coerce_depth(len(depth), iou_depth)
 
     block_labeled = da.overlap.trim_internal(
         block_labeled, iou_depth, boundary=boundary
@@ -149,9 +152,9 @@ def label_adjacency_graph(labels, nlabels, depth, iou_threshold):
     all_mappings = [da.empty((2, 0), dtype=np.int32, chunks=1)]
 
     slices_and_axes = get_slices_and_axes(labels.chunks, labels.shape, depth)
-    for face_slice, axis in slices_and_axes:
+    for face_slice, axis in tqdm(slices_and_axes):
         face = labels[face_slice]
-        mapped = _across_block_iou_delayed(face, axis, iou_threshold)
+        mapped = _across_block_iou_delayed(face.compute(), axis, iou_threshold)
         #TODO: double check this
         if (isinstance(mapped, np.ndarray) and mapped.size == 0):
             continue
@@ -198,7 +201,11 @@ def _across_block_label_iou(face, axis, iou_threshold):
 
     labels0_orig = unique[labels0]
     labels1_orig = unique[labels1]
-    grouped = np.stack([labels0_orig, labels1_orig])
+    try:
+        grouped = np.stack([labels0_orig, labels1_orig])
+    except Exception as e:
+        print(e)
+        return np.array([])
 
     valid = np.all(grouped != 0, axis=0)  # Discard any mappings with bg pixels
     return grouped[:, valid]
