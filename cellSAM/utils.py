@@ -200,7 +200,7 @@ def _histogram_normalization(image, kernel_size=128):
         # adjust histogram if cells not found
         # X = adjust_gamma(X, gamma=3.0) #1.5
         X = exposure.adjust_log(X, 1.5)
-        #TODO: histogram matchin
+        # TODO: histogram matchin
         # https://scikit-image.org/docs/stable/api/skimage.exposure.html#skimage.exposure.match_histograms
         image[:, :, channel] = X
 
@@ -287,6 +287,7 @@ def fill_holes_and_remove_small_masks(masks, min_size=15):
                 j += 1
     return masks
 
+
 def f1_score(pred, target):
     """ adapted from deepcell """
 
@@ -296,39 +297,41 @@ def f1_score(pred, target):
     # Calculations for IOU
     intersection = np.count_nonzero(np.logical_and(pred, target))
     union = np.count_nonzero(np.logical_or(pred, target))
-    recall = intersection / target_sum 
-    precision = intersection /pred_sum 
+    recall = intersection / target_sum
+    precision = intersection / pred_sum
 
     return hmean([recall, precision])
 
+
 def _remap_array(mask, k, v):
     # k, v = np.array(list(mapper.keys())), np.array(list(mapper.values()))
-    mapping_ar = np.zeros(k.max()+1,dtype=v.dtype) #k,v from approach #1
-    
+    mapping_ar = np.zeros(k.max() + 1, dtype=v.dtype)  # k,v from approach #1
+
     mapping_ar[k] = v
     return mapping_ar[mask]
-    
+
+
 def relabel_mask(mask):
     """ Relabels the masks so indices are ordered by their position from the (0,0) point.
     mask (np.array): Input mask with two dimensions
     """
     assert mask.ndim == 2
-    mask = relabel_sequential(np.array(mask))[0] # make sure it isn't a dask array
+    mask = relabel_sequential(np.array(mask))[0]  # make sure it isn't a dask array
     n_cells = len(np.unique(mask)) - 1
-    
+
     props = regionprops(mask)
     distances = []
     # remember one indexed
-    
+
     for prop in props:
         r, c = prop.centroid
-        distances.append(r**2 + c**2)
-        
+        distances.append(r ** 2 + c ** 2)
+
     remap = np.concatenate([[0], 1 + np.argsort(distances)])
     original_idxs = np.arange(n_cells + 1)
-    
+
     assert n_cells + 1 == len(remap) == len(original_idxs)
-    
+
     new_mask = _remap_array(mask, remap, original_idxs)
     try:
         assert f1_score(mask, new_mask) == 1.
